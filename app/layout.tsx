@@ -6,8 +6,8 @@ import { CartProvider } from "@/context/CartContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PARTSHUB | Hybrid ERP & Shop",
-  description: "Unified Inventory Management System",
+  title: "PARTSHUB ERP & SHOP",
+  description: "Unified Inventory System",
 };
 
 export default function RootLayout({
