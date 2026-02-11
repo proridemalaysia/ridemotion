@@ -1,7 +1,6 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
 import { LogIn, UserPlus, Package, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 
@@ -10,15 +9,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
-
-  // Clear any existing stale sessions on mount
-  useEffect(() => {
-    const clearSession = async () => {
-      await supabase.auth.signOut();
-    };
-    clearSession();
-  }, []);
 
   const handleAuth = async (type: 'login' | 'signup') => {
     if (!email || !password) {
@@ -29,44 +19,44 @@ export default function LoginPage() {
     setLoading(true);
     
     try {
-      const { data, error } = type === 'login' 
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ 
-            email, 
-            password,
-            options: {
-              data: { full_name: email.split('@')[0] } // Default name from email
-            }
-          });
-
-      if (error) {
-        alert(error.message);
-        setLoading(false);
-        return;
-      }
-
       if (type === 'signup') {
-        alert("Account created successfully! Promoting you to Admin now...");
-        // Wait a moment for the DB trigger to finish
-        setTimeout(() => {
-          window.location.href = "/"; // Send to shop first, you will promote via Supabase next
-        }, 1000);
+        const { error } = await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: { data: { full_name: email.split('@')[0] } }
+        });
+        if (error) throw error;
+        alert("Registration successful! Your account is now active as a Customer.");
+        setLoading(false);
       } else {
-        // For Login: Check role to decide where to send them
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user?.id)
-          .single();
+        // LOGIN LOGIC
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
 
-        if (profile?.role === 'admin' || profile?.role === 'staff') {
-          router.push('/admin');
-        } else {
-          router.push('/');
+        if (data.user) {
+          // Check role to decide where to send them
+          const { data: profile, error: pError } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', data.user.id)
+            .single();
+
+          if (pError) {
+             console.error("Profile check error:", pError);
+             window.location.href = "/"; // If no profile, send to shop
+             return;
+          }
+
+          if (profile?.role === 'admin' || profile?.role === 'staff') {
+            // FORCE a full page reload to the admin dashboard
+            window.location.assign('/admin'); 
+          } else {
+            window.location.assign('/');
+          }
         }
       }
     } catch (err: any) {
-      alert("An unexpected error occurred");
+      alert(err.message || "An error occurred during authentication");
       setLoading(false);
     }
   };
@@ -74,19 +64,19 @@ export default function LoginPage() {
   return (
     <div className="max-w-md mx-auto mt-20 p-10 bg-white rounded-[40px] shadow-2xl border border-gray-100 animate-in fade-in zoom-in duration-500">
       <div className="text-center mb-10">
-        <div className="bg-orange-600 w-20 h-20 rounded-[28px] flex items-center justify-center mx-auto mb-6 text-white shadow-xl shadow-orange-200 rotate-3 hover:rotate-0 transition-transform duration-500">
+        <div className="bg-orange-600 w-20 h-20 rounded-[28px] flex items-center justify-center mx-auto mb-6 text-white shadow-xl shadow-orange-200 rotate-3">
             <Package size={40} />
         </div>
         <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">PartsHub ERP</h2>
-        <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em] mt-2">Unified Management Portal</p>
+        <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em] mt-2">Access Portal</p>
       </div>
 
       <div className="space-y-5">
         <div>
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Work Email Address</label>
+          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Email</label>
           <input 
             type="email" 
-            className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-orange-500 focus:bg-white rounded-2xl outline-none transition-all text-sm font-bold shadow-inner" 
+            className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-orange-500 rounded-2xl outline-none text-sm font-bold" 
             placeholder="admin@company.com" 
             value={email}
             onChange={e => setEmail(e.target.value)} 
@@ -94,18 +84,15 @@ export default function LoginPage() {
         </div>
         
         <div className="relative">
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Security Password</label>
+          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Password</label>
           <input 
             type={showPassword ? "text" : "password"} 
-            className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-orange-500 focus:bg-white rounded-2xl outline-none transition-all text-sm font-bold shadow-inner" 
+            className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-orange-500 rounded-2xl outline-none text-sm font-bold" 
             placeholder="••••••••••••" 
             value={password}
             onChange={e => setPassword(e.target.value)} 
           />
-          <button 
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-4 top-10 text-slate-400 hover:text-orange-600 transition-colors"
-          >
+          <button onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-10 text-slate-400">
             {showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}
           </button>
         </div>
@@ -114,23 +101,23 @@ export default function LoginPage() {
           <button 
             onClick={() => handleAuth('login')}
             disabled={loading}
-            className="bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex justify-center items-center gap-2 shadow-xl shadow-slate-200 disabled:opacity-50"
+            className="bg-slate-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex justify-center items-center gap-2 shadow-xl"
           >
             {loading ? <Spinner size={16} /> : <LogIn size={18} />} Sign In
           </button>
           <button 
             onClick={() => handleAuth('signup')}
             disabled={loading}
-            className="bg-white border-2 border-slate-900 text-slate-900 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95 flex justify-center items-center gap-2 shadow-sm disabled:opacity-50"
+            className="bg-white border-2 border-slate-900 text-slate-900 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95 flex justify-center items-center gap-2 shadow-sm"
           >
             <UserPlus size={18} /> Register
           </button>
         </div>
 
-        <div className="mt-8 p-5 bg-blue-50 rounded-[24px] border border-blue-100 flex gap-4 items-start shadow-sm">
+        <div className="mt-8 p-5 bg-blue-50 rounded-[24px] border border-blue-100 flex gap-4 items-start">
           <ShieldCheck className="text-blue-600 shrink-0 mt-1" size={24} />
           <p className="text-[11px] text-blue-800 font-bold uppercase leading-relaxed tracking-tight">
-            Security Notice: New registrations default to <b>Customer</b> status. Admin promotion is required via the database console.
+            Role: {email ? "Detecting..." : "Unknown"}. Admins must be verified in the console.
           </p>
         </div>
       </div>
