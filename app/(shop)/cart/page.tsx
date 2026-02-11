@@ -6,34 +6,32 @@ import { Trash2, CreditCard, ArrowRight, Package, ShieldCheck } from 'lucide-rea
 import { Spinner } from '@/components/Spinner';
 
 export default function CartPage() {
-  const { cartItems, cartCount, fetchCart, DEV_USER_ID, removeFromCart } = useCart();
+  const { cartItems, cartCount, fetchCart, user, removeFromCart } = useCart();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
-  // FIXED: Explicitly typed 'acc' as number and 'item' as any to satisfy TypeScript
   const total = cartItems.reduce((acc: number, item: any) => 
     acc + (Number(item.product_variants?.price_online || 0) * item.quantity), 0);
 
   const handleCheckout = async () => {
+    if (!user) return window.location.href = '/login';
     if (cartItems.length === 0) return;
-    setIsCheckingOut(true);
     
+    setIsCheckingOut(true);
     try {
-      // 1. Create the Sale record
       const { data: sale, error: sError } = await supabase
         .from('sales')
         .insert([{
-          customer_id: DEV_USER_ID,
+          customer_id: user.id,
           source: 'online',
           total_amount: total,
           status: 'pending',
           payment_status: 'paid',
-          payment_method: 'fpx' // Default for online
+          payment_method: 'fpx'
         }])
         .select().single();
 
       if (sError) throw sError;
 
-      // 2. Create Sale Items (This triggers the stock deduction in SQL!)
       const saleItems = cartItems.map((item: any) => ({
         sale_id: sale.id,
         variant_id: item.variant_id,
@@ -42,14 +40,11 @@ export default function CartPage() {
         subtotal: item.product_variants.price_online * item.quantity
       }));
 
-      const { error: iError } = await supabase.from('sale_items').insert(saleItems);
-      if (iError) throw iError;
-
-      // 3. Clear Cart
-      await supabase.from('cart_items').delete().eq('user_id', DEV_USER_ID);
+      await supabase.from('sale_items').insert(saleItems);
+      await supabase.from('cart_items').delete().eq('user_id', user.id);
       
-      await fetchCart();
-      alert("Order Placed Successfully! Inventory has been updated.");
+      await fetchCart(user.id);
+      alert("Order successful! You can track it in your profile.");
       window.location.href = "/profile";
     } catch (err: any) {
       alert(err.message);
@@ -59,93 +54,85 @@ export default function CartPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto py-12 px-4">
-      <h1 className="text-3xl font-black text-slate-800 mb-10 flex items-center gap-3">
-        <ShoppingCart className="text-orange-600" size={32} /> 
-        SHOPPING CART <span className="text-slate-300 font-light">({cartCount})</span>
+    <div className="max-w-5xl mx-auto py-8 px-4">
+      <h1 className="text-2xl font-bold text-gray-800 mb-8 flex items-center gap-3">
+        Shopping Cart <span className="text-gray-400 font-normal">({cartCount})</span>
       </h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        {/* Items List */}
-        <div className="lg:col-span-2 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-3">
           {cartItems.map((item: any) => (
-            <div key={item.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex gap-6 items-center group hover:border-orange-200 transition-all">
-              <div className="w-24 h-24 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 group-hover:bg-orange-50 transition-colors">
-                <Package size={40} />
+            <div key={item.id} className="bg-white p-4 rounded-lg border border-gray-200 flex gap-5 items-center group shadow-sm">
+              <div className="w-20 h-20 bg-gray-50 rounded border border-gray-100 flex items-center justify-center text-gray-300">
+                {item.product_variants?.products?.image_url ? (
+                  <img src={item.product_variants.products.image_url} className="w-full h-full object-cover rounded" />
+                ) : (
+                  <Package size={24} />
+                )}
               </div>
               
               <div className="flex-1">
-                <h3 className="font-black text-slate-800 uppercase tracking-tight line-clamp-1">
-                  {item.product_variants?.products?.name || 'Automotive Part'}
+                <h3 className="font-semibold text-gray-800 text-sm leading-tight">
+                  {item.product_variants?.products?.name}
                 </h3>
-                <p className="text-[10px] font-black text-blue-500 tracking-widest uppercase mb-3">
-                  SKU: {item.product_variants?.sku}
-                </p>
-                <div className="flex items-center gap-4">
-                   <p className="text-orange-600 font-black text-xl italic">RM {Number(item.product_variants?.price_online).toFixed(2)}</p>
-                   <span className="text-xs bg-slate-100 px-3 py-1 rounded-full font-bold text-slate-500">Qty: {item.quantity}</span>
+                <p className="text-[10px] text-blue-600 font-mono mt-1">SKU: {item.product_variants?.sku}</p>
+                <div className="flex items-center gap-4 mt-2">
+                   <p className="text-orange-600 font-bold">RM {Number(item.product_variants?.price_online).toFixed(2)}</p>
+                   <span className="text-[11px] bg-gray-100 px-2 py-0.5 rounded text-gray-500">Qty: {item.quantity}</span>
                 </div>
               </div>
 
               <button 
                 onClick={() => removeFromCart(item.id)}
-                className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all active:scale-90"
+                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
               >
-                <Trash2 size={22} />
+                <Trash2 size={18} />
               </button>
             </div>
           ))}
           
           {cartItems.length === 0 && (
-            <div className="text-center py-32 bg-white rounded-[40px] border-2 border-dashed border-slate-100">
-              <Package size={64} className="mx-auto text-slate-100 mb-4" />
-              <p className="text-slate-400 font-black uppercase tracking-widest text-sm">Your cart is empty</p>
-              <button onClick={() => window.location.href = '/'} className="mt-4 text-orange-600 font-black text-xs hover:underline uppercase italic">Continue Shopping →</button>
+            <div className="text-center py-24 bg-white rounded-lg border border-gray-200">
+              <Package size={48} className="mx-auto text-gray-200 mb-4" />
+              <p className="text-gray-400 text-sm font-medium">Your cart is empty</p>
+              <button onClick={() => window.location.href = '/'} className="mt-4 text-orange-600 text-xs font-bold hover:underline">Continue Shopping</button>
             </div>
           )}
         </div>
 
-        {/* Order Summary Card */}
-        <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-2xl shadow-slate-200/50 h-fit sticky top-28">
-          <h2 className="font-black text-slate-800 text-xl mb-6 uppercase italic tracking-tighter border-b pb-4">Summary</h2>
+        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm h-fit sticky top-28">
+          <h2 className="font-bold text-gray-800 text-base mb-4 border-b pb-3">Order Summary</h2>
           
-          <div className="space-y-4 mb-8">
-            <div className="flex justify-between text-slate-500 font-bold text-xs uppercase tracking-widest">
+          <div className="space-y-3 mb-6">
+            <div className="flex justify-between text-gray-500 text-sm">
               <span>Subtotal</span>
               <span>RM {total.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-slate-500 font-bold text-xs uppercase tracking-widest">
+            <div className="flex justify-between text-gray-500 text-sm">
               <span>Shipping</span>
-              <span className="text-green-600">FREE</span>
+              <span className="text-green-600 font-medium">FREE</span>
             </div>
-            <div className="pt-4 border-t flex justify-between items-end">
-               <span className="font-black text-slate-400 uppercase text-[10px]">Grand Total</span>
-               <span className="text-3xl font-black text-slate-900 italic underline decoration-orange-500 decoration-4">RM {total.toFixed(2)}</span>
+            <div className="pt-3 border-t flex justify-between items-center">
+               <span className="font-bold text-gray-800">Total Amount</span>
+               <span className="text-xl font-bold text-orange-600">RM {total.toFixed(2)}</span>
             </div>
           </div>
           
-          <div className="bg-blue-50 p-4 rounded-2xl flex gap-3 mb-8 border border-blue-100">
-            <ShieldCheck className="text-blue-600 shrink-0" size={20} />
-            <p className="text-[10px] text-blue-800 font-bold uppercase leading-relaxed tracking-tight">
-              Inventory locked & synced. Secure SSL Checkout enabled.
-            </p>
+          <div className="bg-blue-50 p-3 rounded text-[11px] text-blue-700 flex gap-2 mb-6">
+            <ShieldCheck size={16} className="shrink-0" />
+            Stock is reserved for 30 minutes after checkout.
           </div>
 
           <button 
             onClick={handleCheckout}
             disabled={cartItems.length === 0 || isCheckingOut}
-            className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-slate-800 active:scale-95 transition-all disabled:opacity-30 shadow-xl shadow-slate-200"
+            className="w-full bg-gray-900 text-white py-3.5 rounded-lg font-bold text-sm hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
           >
-            {isCheckingOut ? <Spinner size={24} /> : <CreditCard size={24} />}
-            {isCheckingOut ? 'PROCESSING...' : 'CONFIRM PURCHASE'}
+            {isCheckingOut ? <Spinner size={18} /> : <CreditCard size={18} />}
+            {isCheckingOut ? 'Processing...' : 'Checkout Now'}
           </button>
         </div>
       </div>
     </div>
   );
 }
-
-// Simple internal icon for this page
-const ShoppingCart = ({ size, className }: { size: number, className: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
-);
