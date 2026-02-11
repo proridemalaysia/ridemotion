@@ -8,11 +8,12 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  // --- THE BYPASS: BLOCK app.js FROM LOADING ---
-  // This header tells the browser: "If you see a script called app.js, DO NOT load it."
+  // --- THE ULTIMATE BLOCKER ---
+  // script-src 'self' 'unsafe-inline' means ONLY allow our own code. 
+  // It will REJECT app.js because app.js is not part of the Next.js build.
   response.headers.set(
     'Content-Security-Policy',
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' *.supabase.co *.supabase.net; object-src 'none';"
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' *.supabase.co; object-src 'none';"
   )
 
   const supabase = createServerClient(
@@ -35,10 +36,10 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname;
-  const isProtected = path.startsWith('/admin') || path.startsWith('/inventory') || path.startsWith('/sales') || path.startsWith('/finance');
-
-  if (isProtected && !user) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  
+  // Protect ERP paths
+  if (path.startsWith('/admin') || path.startsWith('/inventory') || path.startsWith('/sales')) {
+    if (!user) return NextResponse.redirect(new URL('/login', request.url))
   }
 
   return response

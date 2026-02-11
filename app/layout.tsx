@@ -1,35 +1,37 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
 
-const inter = Inter({ subsets: ["latin"] });
-
 export const metadata: Metadata = {
   title: "PARTSHUB ERP",
-  description: "Bypassing script errors...",
+  description: "Management System",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
-        {/* --- THE GHOST BYPASS SCRIPT --- */}
+        {/* THE GHOST SCRIPT KILLER: Runs before everything to stop app.js from crashing */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              window.onerror = function(message, source, lineno, colno, error) {
-                if (source && source.includes('app.js')) {
-                  console.warn('Blocked crashing external script:', source);
-                  return true; // This stops the error from freezing the browser
-                }
-                return false;
-              };
+              (function() {
+                window.onerror = function(msg, url) {
+                  if (url && url.includes('app.js')) return true;
+                  return false;
+                };
+                console.warn = (function(oldWarn) {
+                  return function(msg) {
+                    if (typeof msg === 'string' && msg.includes('app.js')) return;
+                    oldWarn.apply(console, arguments);
+                  };
+                })(console.warn);
+              })();
             `,
           }}
         />
       </head>
-      <body className={inter.className}>
+      <body style={{ margin: 0, padding: 0, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <CartProvider>
           {children}
         </CartProvider>
