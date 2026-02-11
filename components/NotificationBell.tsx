@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link'; // Import added
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Bell, AlertTriangle, ShoppingBag, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -14,15 +14,19 @@ export default function NotificationBell() {
   useEffect(() => {
     fetchNotifications();
 
-    // 1. Listen for real-time notifications via Supabase Realtime
+    // FIXED: Explicitly added schema: 'public' to satisfy strict TypeScript narrowing
     const channel = supabase
       .channel('notifications-live')
       .on(
         'postgres_changes', 
-        { event: 'INSERT', table: 'notifications' }, 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'notifications' 
+        }, 
         (payload) => {
           setNotifications(prev => [payload.new, ...prev]);
-          // Play a subtle notification sound
+          // Sound effect on new notification
           const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
           audio.play().catch(() => {}); 
         }
@@ -55,10 +59,10 @@ export default function NotificationBell() {
 
   return (
     <div className="relative">
-      {/* The Bell Button */}
+      {/* Trigger Button */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2.5 rounded-2xl bg-white border border-slate-100 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all relative group"
+        className="p-2.5 rounded-2xl bg-white border border-slate-100 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all relative group shadow-sm active:scale-90"
       >
         <Bell size={22} className={clsx(unreadCount > 0 && "animate-bounce")} />
         {unreadCount > 0 && (
@@ -66,35 +70,34 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Notification Panel */}
       {isOpen && (
         <>
-          {/* Backdrop to close dropdown */}
           <div className="fixed inset-0 z-[100]" onClick={() => setIsOpen(false)}></div>
           
           <div className="absolute right-0 mt-4 w-96 bg-white rounded-3xl shadow-2xl border border-slate-100 z-[110] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="p-5 border-b flex justify-between items-center bg-gray-50/50">
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Alert Center</h3>
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Operations Center</h3>
               <button 
                 onClick={markAllRead} 
-                className="text-[10px] font-bold text-blue-600 hover:underline uppercase tracking-tighter"
+                className="text-[10px] font-black text-blue-600 hover:underline uppercase tracking-widest"
               >
-                Mark all read
+                Clear Unread
               </button>
             </div>
 
             <div className="max-h-[400px] overflow-y-auto divide-y divide-slate-50">
               {notifications.length === 0 ? (
-                <div className="p-10 text-center text-slate-400 italic text-xs font-medium">
-                  No new alerts at this time.
+                <div className="p-10 text-center text-slate-400 italic text-xs font-bold uppercase tracking-tighter">
+                  System operational • No alerts
                 </div>
               ) : (
                 notifications.map((n) => (
                   <div 
                     key={n.id} 
                     className={clsx(
-                      "p-4 flex gap-4 transition-colors", 
-                      !n.is_read ? "bg-blue-50/40" : "bg-white"
+                      "p-4 flex gap-4 transition-colors hover:bg-gray-50", 
+                      !n.is_read ? "bg-blue-50/30" : "bg-white"
                     )}
                   >
                     <div className={clsx(
@@ -114,8 +117,8 @@ export default function NotificationBell() {
                           <Trash2 size={12}/>
                         </button>
                       </div>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed line-clamp-2">{n.message}</p>
-                      <p className="text-[9px] text-slate-300 font-bold uppercase mt-2 italic">
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed line-clamp-2 font-medium">{n.message}</p>
+                      <p className="text-[9px] font-black text-slate-300 uppercase mt-2 tracking-widest italic">
                         {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
@@ -126,10 +129,10 @@ export default function NotificationBell() {
 
             <Link 
               href="/admin" 
-              className="block p-4 text-center text-[10px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-widest border-t bg-gray-50/50 transition-colors"
+              className="block p-4 text-center text-[10px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-[0.2em] border-t bg-gray-50/50 transition-colors"
               onClick={() => setIsOpen(false)}
             >
-              View System Dashboard
+              Enter Main Dashboard
             </Link>
           </div>
         </>

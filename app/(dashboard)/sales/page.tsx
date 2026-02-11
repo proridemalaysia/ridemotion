@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ShoppingBag, Globe, Store, Clock, CheckCircle, Plus, Eye, Search, TrendingUp } from 'lucide-react';
+import { ShoppingBag, Globe, Store, Clock, CheckCircle, Plus, Eye, Search } from 'lucide-react';
 import { clsx } from 'clsx';
 import { Spinner } from '@/components/Spinner';
 import POSModal from '@/components/POSModal';
@@ -15,8 +15,24 @@ export default function SalesDashboard() {
 
   useEffect(() => {
     fetchSales();
-    const channel = supabase.channel('sales-sync').on('postgres_changes', { event: '*', table: 'sales' }, () => fetchSales()).subscribe();
-    return () => { supabase.removeChannel(channel); };
+    
+    // FIXED: Added schema: 'public' to satisfy TypeScript
+    const channel = supabase
+      .channel('sales-sync')
+      .on(
+        'postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'sales' 
+        }, 
+        () => fetchSales()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function fetchSales() {
@@ -29,12 +45,10 @@ export default function SalesDashboard() {
     setLoading(false);
   }
 
-  const revenue = sales.reduce((acc, s) => acc + s.total_amount, 0);
+  const revenue = sales.reduce((acc, s) => acc + Number(s.total_amount || 0), 0);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 print:hidden">
-      
-      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-black text-slate-800 tracking-tight italic uppercase">Sales & Orders</h2>
@@ -48,7 +62,6 @@ export default function SalesDashboard() {
         </button>
       </div>
 
-      {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl">
           <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Total Sales Volume</p>
@@ -66,7 +79,6 @@ export default function SalesDashboard() {
         </div>
       </div>
 
-      {/* Sales Table */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-6 border-b bg-gray-50/50 flex justify-between items-center">
            <div className="relative w-72">
@@ -103,13 +115,13 @@ export default function SalesDashboard() {
                       {sale.source}
                     </span>
                   </td>
-                  <td className="px-6 py-5 font-black text-slate-800 italic">RM {sale.total_amount.toFixed(2)}</td>
+                  <td className="px-6 py-5 font-black text-slate-800 italic">RM {Number(sale.total_amount).toFixed(2)}</td>
                   <td className="px-6 py-5">
                     <span className={clsx(
                       "text-[9px] font-black px-2 py-1 rounded-full border uppercase flex items-center gap-1 w-fit",
                       sale.status === 'pending' ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-green-50 text-green-600 border-green-200"
                     )}>
-                      {sale.status === 'pending' ? <Clock size={10}/> : <CheckCircle size={10}/>} {sale.status}
+                      <Clock size={10}/> {sale.status}
                     </span>
                   </td>
                   <td className="px-8 py-5 text-right">
@@ -127,7 +139,6 @@ export default function SalesDashboard() {
         </div>
       </div>
 
-      {/* Modals */}
       <POSModal isOpen={isPOSOpen} onClose={() => setIsPOSOpen(false)} onSuccess={fetchSales} />
       <SaleDetailModal sale={selectedSale} isOpen={!!selectedSale} onClose={() => setSelectedSale(null)} onRefresh={fetchSales} />
     </div>
