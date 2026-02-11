@@ -10,48 +10,46 @@ import {
   LogOut,
   ChevronRight,
   Truck,
-  Settings,
-  CircleUser,
   Wallet,
   Users,
   Wrench,
-  Printer // Added for Labels
+  Printer,
+  CircleUser
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import NotificationBell from '@/components/NotificationBell';
 
 const navItems = [
-  { name: 'Overview', href: '/admin', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'Inventory', href: '/inventory', icon: Package },
-  { name: 'Print Labels', href: '/inventory/labels', icon: Printer }, // Added link
+  { name: 'Label Printing', href: '/inventory/labels', icon: Printer },
   { name: 'Suppliers', href: '/suppliers', icon: Users },
   { name: 'Stock In (GRN)', href: '/purchasing', icon: Truck },
-  { name: 'Sales / POS', href: '/sales', icon: ShoppingCart },
-  { name: 'Finance (Z-Report)', href: '/finance', icon: Wallet },
+  { name: 'Sales & POS', href: '/sales', icon: ShoppingCart },
+  { name: 'Daily Closing', href: '/finance', icon: Wallet },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
-  { name: 'Utilities', href: '/utilities', icon: Wrench },
+  { name: 'Settings', href: '/utilities', icon: Wrench },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex min-h-screen bg-gray-100 font-sans">
-      {/* Sidebar Navigation - Fixed Position */}
-      <aside className="w-72 bg-slate-900 text-white fixed h-full shadow-2xl z-50">
-        <div className="p-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-500/20 text-white">
-              <Package className="w-6 h-6" />
+    <div className="flex min-h-screen bg-gray-50 text-slate-900">
+      {/* Sidebar */}
+      <aside className="w-64 bg-white border-r border-gray-200 fixed h-full z-50">
+        <div className="p-6 border-b border-gray-100">
+          <Link href="/admin" className="flex items-center gap-2">
+            <div className="bg-blue-600 p-1.5 rounded text-white">
+              <Package size={20} />
             </div>
-            <h1 className="text-xl font-black tracking-tighter italic uppercase">
-              PARTS<span className="text-blue-500">ERP</span>
-            </h1>
-          </div>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">Management Suite</p>
+            <span className="text-lg font-bold tracking-tight text-slate-800">
+              PartsHub ERP
+            </span>
+          </Link>
         </div>
         
-        <nav className="mt-4 px-4 space-y-1 overflow-y-auto max-h-[calc(100vh-250px)] scrollbar-hide">
+        <nav className="p-4 space-y-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -59,65 +57,54 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 key={item.name}
                 href={item.href}
                 className={clsx(
-                  "flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 group",
+                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                   isActive 
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" 
-                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                    ? "bg-blue-50 text-blue-700 font-medium" 
+                    : "text-slate-600 hover:bg-gray-50 hover:text-slate-900"
                 )}
               >
-                <div className="flex items-center gap-3 py-0.5">
-                  <item.icon className={clsx("w-5 h-5", isActive ? "text-white" : "text-slate-500 group-hover:text-blue-400")} />
-                  <span className="font-bold text-sm tracking-tight">{item.name}</span>
-                </div>
-                {isActive && <ChevronRight size={14} />}
+                <item.icon size={18} className={isActive ? "text-blue-600" : "text-slate-400"} />
+                {item.name}
               </Link>
             );
           })}
         </nav>
 
-        {/* Sidebar Footer */}
-        <div className="absolute bottom-0 w-full p-6 border-t border-slate-800 bg-slate-900/50 backdrop-blur-md">
-          <Link href="/" className="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-orange-400 transition-colors mb-2">
+        <div className="absolute bottom-0 w-full p-4 border-t border-gray-100">
+          <Link href="/" className="flex items-center gap-3 px-3 py-2 text-sm text-slate-500 hover:text-blue-600">
             <ShoppingCart size={18} />
-            <span className="text-xs font-bold uppercase tracking-widest">Public Store</span>
+            View Storefront
           </Link>
-          <button className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-red-400 w-full transition-colors font-bold text-xs uppercase tracking-widest">
-            <LogOut size={18} /> Sign Out
+          <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-500 hover:text-red-600 mt-1">
+            <LogOut size={18} />
+            Sign Out
           </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="ml-72 flex-1 p-10 print:ml-0 print:p-0">
-        <header className="mb-10 flex justify-between items-center print:hidden">
-          <div>
-            <h2 className="text-sm font-black text-blue-600 uppercase tracking-[0.3em] mb-1">
-              {pathname === '/admin' ? 'Operations' : pathname.replace('/', '').split('/').pop()?.replace('-', ' ')}
-            </h2>
-            <div className="h-1 w-12 bg-blue-600 rounded-full"></div>
-          </div>
+      {/* Main Content */}
+      <main className="ml-64 flex-1">
+        <header className="h-16 bg-white border-b border-gray-200 px-8 flex items-center justify-between sticky top-0 z-40">
+          <h2 className="text-sm font-semibold text-slate-600">
+            {navItems.find(i => i.href === pathname)?.name || 'Admin'}
+          </h2>
           
           <div className="flex items-center gap-4">
-            {/* Real-time Notification Component */}
             <NotificationBell />
-            
-            <div className="w-px h-10 bg-slate-200 mx-2"></div>
-
-            {/* Profile Section */}
-            <div className="flex items-center gap-3 bg-white p-1.5 pr-4 rounded-2xl border border-slate-100 shadow-sm">
-              <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-blue-400 shadow-lg shadow-slate-200">
-                 <CircleUser size={24} />
-              </div>
+            <div className="h-6 w-px bg-gray-200" />
+            <div className="flex items-center gap-2">
               <div className="text-right">
-                <p className="text-xs font-black text-slate-800 uppercase italic leading-none">Admin</p>
-                <p className="text-[9px] text-green-600 font-bold uppercase tracking-widest mt-1">System Live</p>
+                <p className="text-xs font-semibold text-slate-900">Administrator</p>
+                <p className="text-[10px] text-green-600 font-medium">System Online</p>
+              </div>
+              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-slate-400 border border-gray-200">
+                 <CircleUser size={20} />
               </div>
             </div>
           </div>
         </header>
 
-        {/* Dynamic Page Content */}
-        <div className="print:block">
+        <div className="p-8">
           {children}
         </div>
       </main>

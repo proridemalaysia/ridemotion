@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Package, Search, Plus, RotateCw, Save, Edit3, Trash2, Archive, EyeOff } from 'lucide-react';
+import { Package, Search, Plus, RotateCw, Save, Edit3, Archive } from 'lucide-react';
 import { clsx } from 'clsx';
 import ProductModal from '@/components/ProductModal';
 import { Spinner } from '@/components/Spinner';
@@ -20,17 +20,11 @@ export default function InventoryPage() {
     const { data } = await supabase
       .from('products')
       .select(`*, product_variants (*)`)
-      .eq('is_archived', false) // Only show active items
+      .eq('is_archived', false)
       .order('created_at', { ascending: false });
     if (data) setProducts(data);
     setLoading(false);
   }
-
-  const handleArchive = async (id: string) => {
-    if (!confirm("Archive this part? It will be hidden from the storefront but remain in sales history.")) return;
-    await supabase.from('products').update({ is_archived: true }).eq('id', id);
-    fetchProducts();
-  };
 
   const handlePriceChange = (variantId: string, field: string, value: string) => {
     setPendingChanges({ ...pendingChanges, [variantId]: { ...pendingChanges[variantId], [field]: parseFloat(value) } });
@@ -47,66 +41,92 @@ export default function InventoryPage() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight italic uppercase">Master Stock</h2>
-          <p className="text-slate-400 text-sm font-medium">Control your catalog visibility and pricing</p>
+          <h2 className="text-2xl font-bold text-slate-800">Inventory Master</h2>
+          <p className="text-slate-500 text-sm">Manage parts, prices, and stock levels</p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={() => setEditMode(!editMode)} className={clsx("px-6 py-3.5 rounded-2xl font-black flex items-center gap-2 transition-all active:scale-95 shadow-lg", editMode ? "bg-amber-500 text-white shadow-amber-100" : "bg-white border-2 border-slate-900 text-slate-900")}>
-            <Edit3 size={20} /> {editMode ? 'CANCEL EDIT' : 'PRICE MODE'}
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setEditMode(!editMode)}
+            className={clsx(
+              "px-4 py-2 rounded text-sm font-medium transition-all flex items-center gap-2",
+              editMode ? "bg-amber-100 text-amber-700" : "bg-white border border-gray-300 text-slate-700 hover:bg-gray-50"
+            )}
+          >
+            <Edit3 size={16} /> {editMode ? 'Cancel Edit' : 'Edit Prices'}
           </button>
+          
           {editMode ? (
-            <button onClick={saveBulkChanges} className="bg-green-600 text-white px-8 py-3.5 rounded-2xl font-black flex items-center gap-2 hover:bg-green-700 transition-all active:scale-95 shadow-xl shadow-green-100">
-              <Save size={20} /> COMMIT CHANGES
+            <button onClick={saveBulkChanges} className="bg-green-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-green-700 transition-all flex items-center gap-2">
+              <Save size={16} /> Save Changes
             </button>
           ) : (
-            <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-8 py-3.5 rounded-2xl font-black flex items-center gap-2 hover:bg-blue-700 transition-all active:scale-95 shadow-xl shadow-blue-100">
-              <Plus size={24} /> NEW PART
+            <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 transition-all flex items-center gap-2">
+              <Plus size={16} /> Add Part
             </button>
           )}
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center">
+           <div className="relative w-80">
+              <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+              <input type="text" placeholder="Search SKU, Name..." className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 outline-none" />
+           </div>
+           <button onClick={fetchProducts} className="p-2 text-gray-400 hover:text-blue-600"><RotateCw size={18} /></button>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left text-sm">
             <thead>
-              <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b bg-gray-50/50">
-                <th className="px-8 py-5">Item Identity</th>
-                <th className="px-6 py-5 text-center">Stock Level</th>
-                <th className="px-6 py-5">POS RM</th>
-                <th className="px-6 py-5">ONLINE RM</th>
-                <th className="px-8 py-5 text-right">Visibility</th>
+              <tr className="bg-gray-50 text-gray-600 font-medium border-b border-gray-100">
+                <th className="px-6 py-3">Product Name</th>
+                <th className="px-6 py-3">SKU</th>
+                <th className="px-6 py-3 text-center">Stock</th>
+                <th className="px-6 py-3">Retail (RM)</th>
+                <th className="px-6 py-3">Online (RM)</th>
+                <th className="px-6 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-gray-100">
               {loading && products.length === 0 ? (
-                <tr><td colSpan={5} className="py-32 text-center"><Spinner className="mx-auto" /></td></tr>
+                <tr><td colSpan={6} className="py-20 text-center text-gray-400">Loading inventory...</td></tr>
               ) : products.map((p) => {
                 const variant = p.product_variants?.[0];
                 return (
-                  <tr key={p.id} className="hover:bg-blue-50/20 transition-colors group">
-                    <td className="px-8 py-5">
-                      <div className="font-bold text-slate-800 text-sm">{p.name}</div>
-                      <div className="text-[10px] font-black text-blue-600 tracking-tighter uppercase italic">{variant?.sku} • {p.brand_name}</div>
+                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-slate-800">{p.name}</div>
+                      <div className="text-xs text-slate-500">{p.brand_name}</div>
                     </td>
-                    <td className="px-6 py-5 text-center">
-                      <span className={clsx("px-3 py-1 rounded-full text-[10px] font-black uppercase", variant?.stock_quantity < 5 ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600")}>
-                        {variant?.stock_quantity} In-Bin
+                    <td className="px-6 py-4 text-slate-600 font-mono text-xs">{variant?.sku}</td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={clsx(
+                        "px-2 py-0.5 rounded text-[11px] font-semibold",
+                        variant?.stock_quantity < 5 ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
+                      )}>
+                        {variant?.stock_quantity}
                       </span>
                     </td>
-                    <td className="px-6 py-5 font-bold text-slate-700">
-                       {editMode ? <input type="number" defaultValue={variant?.price_sell} className="w-24 p-2 border rounded-lg text-xs font-black" onChange={(e) => handlePriceChange(variant.id, 'price_sell', e.target.value)} /> : `RM ${variant?.price_sell?.toFixed(2)}`}
+                    <td className="px-6 py-4">
+                       {editMode ? (
+                         <input type="number" defaultValue={variant?.price_sell} className="w-20 p-1 border rounded text-xs" onChange={(e) => handlePriceChange(variant.id, 'price_sell', e.target.value)} />
+                       ) : (
+                         `RM ${variant?.price_sell?.toFixed(2)}`
+                       )}
                     </td>
-                    <td className="px-6 py-5 font-black text-orange-600">
-                       {editMode ? <input type="number" defaultValue={variant?.price_online} className="w-24 p-2 border rounded-lg text-xs font-black" onChange={(e) => handlePriceChange(variant.id, 'price_online', e.target.value)} /> : `RM ${variant?.price_online?.toFixed(2)}`}
+                    <td className="px-6 py-4">
+                       {editMode ? (
+                         <input type="number" defaultValue={variant?.price_online} className="w-20 p-1 border rounded text-xs" onChange={(e) => handlePriceChange(variant.id, 'price_online', e.target.value)} />
+                       ) : (
+                         `RM ${variant?.price_online?.toFixed(2)}`
+                       )}
                     </td>
-                    <td className="px-8 py-5 text-right">
-                       <button onClick={() => handleArchive(p.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors" title="Archive Part">
-                          <Archive size={18} />
-                       </button>
+                    <td className="px-6 py-4 text-right">
+                       <button className="text-slate-400 hover:text-red-600"><Archive size={16} /></button>
                     </td>
                   </tr>
                 );
