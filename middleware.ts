@@ -2,36 +2,31 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
+
+  // --- THE BYPASS: BLOCK app.js FROM LOADING ---
+  // This header tells the browser: "If you see a script called app.js, DO NOT load it."
+  response.headers.set(
+    'Content-Security-Policy',
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' *.supabase.co *.supabase.net; object-src 'none';"
+  )
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
+        get(name: string) { return request.cookies.get(name)?.value },
         set(name: string, value: string, options: CookieOptions) {
           request.cookies.set({ name, value, ...options })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
           response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
           request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
           response.cookies.set({ name, value: '', ...options })
         },
       },
@@ -39,19 +34,9 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-
-  // Define paths that need ANY login (Bypassing Role Check for now)
   const path = request.nextUrl.pathname;
-  const isProtected = path.startsWith('/admin') || 
-                      path.startsWith('/inventory') || 
-                      path.startsWith('/sales') || 
-                      path.startsWith('/finance') ||
-                      path.startsWith('/reports') ||
-                      path.startsWith('/purchasing') ||
-                      path.startsWith('/suppliers') ||
-                      path.startsWith('/utilities');
+  const isProtected = path.startsWith('/admin') || path.startsWith('/inventory') || path.startsWith('/sales') || path.startsWith('/finance');
 
-  // Logic: If trying to access ERP and not logged in at all, go to login
   if (isProtected && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
