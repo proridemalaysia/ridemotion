@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Wrench, Percent, Save, Building2, Phone, Mail, MapPin, Hash, ShieldCheck } from 'lucide-react';
+import { Building2, Percent, Save, ShieldCheck } from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 
 export default function UtilitiesPage() {
@@ -24,100 +24,89 @@ export default function UtilitiesPage() {
     setLoading(false);
   }
 
-  const saveBusinessProfile = async () => {
+  const handleSave = async (table: string, data: any) => {
     setUpdating(true);
-    const { error } = await supabase.from('global_settings').update(settings).eq('id', 'current_config');
+    const { error } = await supabase.from(table).update(data).eq('id', data.id);
     if (error) alert(error.message);
-    else alert("Business profile updated successfully!");
+    else alert("Settings saved successfully.");
     setUpdating(false);
   };
 
-  const savePricingRules = async () => {
-    setUpdating(true);
-    const { error } = await supabase.from('system_settings').update(pricing).eq('id', 'pricing_rules');
-    if (error) alert(error.message);
-    else alert("Pricing logic updated!");
-    setUpdating(false);
-  };
+  if (loading) return <div className="p-20 text-center"><Spinner /></div>;
 
-  if (loading) return <div className="p-20 text-center"><Spinner className="mx-auto" /></div>;
+  const labelClass = "block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2";
+  const inputClass = "w-full p-2.5 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 outline-none transition-all";
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="space-y-8 max-w-5xl">
       <div>
-        <h2 className="text-3xl font-black text-slate-800 tracking-tight italic uppercase">System Control Panel</h2>
-        <p className="text-slate-400 text-sm font-medium">Manage global identity and automated engines</p>
+        <h2 className="text-2xl font-bold text-slate-800">System Settings</h2>
+        <p className="text-slate-500 text-sm">Configure your company profile and automated pricing logic</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* 1. Business Identity Form */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm p-8 space-y-8">
-          <div className="flex items-center gap-3">
-             <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-100"><Building2 size={24}/></div>
-             <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest">Official Business Profile</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Business Identity */}
+        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-6">
+          <div className="flex items-center gap-2 pb-4 border-b border-gray-100">
+             <Building2 size={18} className="text-blue-600" />
+             <h3 className="font-semibold text-slate-800">Business Identity</h3>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
-            <div className="col-span-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Company Legal Name</label>
-              <input className="w-full p-4 bg-slate-50 border rounded-2xl font-bold" value={settings?.company_name} onChange={e => setSettings({...settings, company_name: e.target.value})} />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Registration Address (For Invoices)</label>
-              <textarea rows={3} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold" value={settings?.company_address} onChange={e => setSettings({...settings, company_address: e.target.value})} />
+          <div className="space-y-4">
+            <div>
+              <label className={labelClass}>Company Name</label>
+              <input className={inputClass} value={settings?.company_name} onChange={e => setSettings({...settings, company_name: e.target.value})} />
             </div>
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase mb-2"><Phone size={10} className="inline mr-1"/> Phone Number</label>
-              <input className="w-full p-4 bg-slate-50 border rounded-2xl font-bold" value={settings?.company_phone} onChange={e => setSettings({...settings, company_phone: e.target.value})} />
+              <label className={labelClass}>Registration Address</label>
+              <textarea rows={3} className={inputClass} value={settings?.company_address} onChange={e => setSettings({...settings, company_address: e.target.value})} />
             </div>
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase mb-2"><Hash size={10} className="inline mr-1"/> SST / Tax ID</label>
-              <input className="w-full p-4 bg-slate-50 border rounded-2xl font-bold" value={settings?.tax_id} onChange={e => setSettings({...settings, tax_id: e.target.value})} />
+              <label className={labelClass}>Tax / SST ID</label>
+              <input className={inputClass} value={settings?.tax_id} onChange={e => setSettings({...settings, tax_id: e.target.value})} />
             </div>
-          </div>
-
-          <button 
-            onClick={saveBusinessProfile}
-            disabled={updating}
-            className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex justify-center items-center gap-2"
-          >
-            {updating ? <Spinner size={16}/> : <Save size={18}/>} Save Identity Settings
-          </button>
-        </div>
-
-        {/* 2. Side Panel Pricing Logic */}
-        <div className="space-y-6">
-          <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl">
-             <div className="flex items-center gap-3 mb-6">
-                <Percent size={20} className="text-blue-400" />
-                <h3 className="font-black uppercase text-xs tracking-widest">Auto Pricing Logic</h3>
-             </div>
-             
-             <div className="space-y-4">
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Retail Markup %</label>
-                  <input type="number" className="w-full bg-white/10 border border-white/10 p-3 rounded-xl font-black text-blue-400 outline-none" value={pricing?.default_retail_markup_percent} onChange={e => setPricing({...pricing, default_retail_markup_percent: parseFloat(e.target.value)})}/>
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Online Markup %</label>
-                  <input type="number" className="w-full bg-white/10 border border-white/10 p-3 rounded-xl font-black text-orange-400 outline-none" value={pricing?.default_online_markup_percent} onChange={e => setPricing({...pricing, default_online_markup_percent: parseFloat(e.target.value)})}/>
-                </div>
-                <button onClick={savePricingRules} className="w-full bg-blue-600 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest mt-4">Update Logic</button>
-             </div>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-100 rounded-3xl p-6">
-             <div className="flex gap-3 text-blue-800">
-                <ShieldCheck size={24} className="shrink-0" />
-                <div>
-                   <p className="text-[10px] font-black uppercase tracking-widest mb-1">Audit Protocol</p>
-                   <p className="text-xs font-medium leading-relaxed">Changes to global settings are logged. Ensure SST IDs match your official registration documents.</p>
-                </div>
-             </div>
+            <button 
+              onClick={() => handleSave('global_settings', settings)}
+              disabled={updating}
+              className="w-full bg-slate-800 text-white py-2 rounded text-sm font-medium hover:bg-slate-900 transition-colors"
+            >
+              {updating ? 'Saving...' : 'Update Profile'}
+            </button>
           </div>
         </div>
 
+        {/* Pricing Rules */}
+        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-6">
+          <div className="flex items-center gap-2 pb-4 border-b border-gray-100">
+             <Percent size={18} className="text-orange-600" />
+             <h3 className="font-semibold text-slate-800">Automation Rules</h3>
+          </div>
+
+          <div className="space-y-4">
+             <div className="p-4 bg-orange-50 rounded border border-orange-100">
+                <p className="text-[11px] text-orange-700 font-medium leading-relaxed">
+                  These markups are applied when using the "Stock In" or "Recalculate Prices" features.
+                </p>
+             </div>
+             <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Retail Markup %</label>
+                  <input type="number" className={inputClass} value={pricing?.default_retail_markup_percent} onChange={e => setPricing({...pricing, default_retail_markup_percent: parseFloat(e.target.value)})}/>
+                </div>
+                <div>
+                  <label className={labelClass}>Online Markup %</label>
+                  <input type="number" className={inputClass} value={pricing?.default_online_markup_percent} onChange={e => setPricing({...pricing, default_online_markup_percent: parseFloat(e.target.value)})}/>
+                </div>
+             </div>
+             <button 
+              onClick={() => handleSave('system_settings', pricing)}
+              disabled={updating}
+              className="w-full bg-blue-600 text-white py-2 rounded text-sm font-medium hover:bg-blue-700 shadow-sm"
+             >
+              Save Pricing Rules
+             </button>
+          </div>
+        </div>
       </div>
     </div>
   );
