@@ -26,26 +26,13 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Routes that require Staff/Admin role
-  const protectedRoutes = ['/admin', '/inventory', '/sales', '/finance', '/reports', '/utilities', '/suppliers', '/purchasing'];
-  const isProtectedRoute = protectedRoutes.some(path => request.nextUrl.pathname.startsWith(path));
+  // Only protect the main ERP routes
+  const isErpPage = request.nextUrl.pathname.startsWith('/admin') || 
+                    request.nextUrl.pathname.startsWith('/inventory') ||
+                    request.nextUrl.pathname.startsWith('/sales');
 
-  if (isProtectedRoute) {
-    if (!user) {
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
-
-    // Role check
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    // If user is logged in but NOT admin/staff, send to shop home
-    if (profile && profile.role !== 'admin' && profile.role !== 'staff') {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
+  if (isErpPage && !user) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
   return response
