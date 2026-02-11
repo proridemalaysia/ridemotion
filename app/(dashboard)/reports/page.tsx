@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Spinner } from '@/components/Spinner';
 import { Truck, TrendingUp, BarChart3, Info, AlertCircle } from 'lucide-react';
-import { clsx } from 'clsx'; // Added this missing import
+import { clsx } from 'clsx';
 
 export default function ReportsPage() {
   const [data, setData] = useState<any[]>([]);
@@ -11,7 +11,6 @@ export default function ReportsPage() {
 
   useEffect(() => {
     async function fetchReport() {
-      // Joining 'products' to get the name for each variant
       const { data: variants, error } = await supabase
         .from('product_variants')
         .select(`
@@ -33,7 +32,6 @@ export default function ReportsPage() {
     fetchReport();
   }, []);
 
-  // Calculate CBM for one variant: (L * W * H) / 1,000,000
   const calculateCBM = (l: number, w: number, h: number) => {
     if (!l || !w || !h) return 0;
     return (Number(l) * Number(w) * Number(h)) / 1000000; 
@@ -41,13 +39,12 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-      {/* Header Section */}
       <div className="flex justify-between items-end">
         <div>
           <h2 className="text-3xl font-black text-slate-800 tracking-tight italic uppercase">Business Intelligence</h2>
           <p className="text-slate-400 text-sm font-medium">Detailed Profit & Logistics Analysis</p>
         </div>
-        <div className="bg-white px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-3 shadow-sm">
+        <div className="bg-white px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-3 shadow-sm text-nowrap">
            <BarChart3 size={20} className="text-blue-600" />
            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
              Live Sync:<br/><span className="text-slate-800">Operational</span>
@@ -55,7 +52,6 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Main Analysis Table */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden">
         <div className="overflow-x-auto text-nowrap">
           <table className="w-full text-left">
@@ -86,7 +82,6 @@ export default function ReportsPage() {
                   </td>
                 </tr>
               ) : data.map((variant) => {
-                // Defensive logic for calculations
                 const productName = variant.products?.name || "Unnamed Product";
                 const cost = Number(variant.cost_price) || 0;
                 const sell = Number(variant.price_sell) || 0;
@@ -98,7 +93,12 @@ export default function ReportsPage() {
                   <tr key={variant.id} className="hover:bg-blue-50/20 transition-colors group">
                     <td className="px-8 py-5">
                       <div className="font-bold text-slate-800 flex items-center gap-2">
-                        {!variant.products && <AlertCircle size={14} className="text-red-500" title="Missing Product Link" />}
+                        {/* FIX: Wrapped AlertCircle in span to handle the title prop correctly for TypeScript */}
+                        {!variant.products && (
+                          <span title="Missing Product Link" className="cursor-help">
+                            <AlertCircle size={14} className="text-red-500" />
+                          </span>
+                        )}
                         {productName}
                       </div>
                       <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">SKU: {variant.sku}</div>
@@ -136,7 +136,6 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Action Footer Info Box */}
       <div className="bg-slate-900 p-8 rounded-3xl text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl shadow-slate-200">
          <div className="flex items-center gap-5">
             <div className="bg-blue-600 p-4 rounded-2xl text-white shadow-lg shadow-blue-500/20"><Info size={28}/></div>
