@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Spinner } from '@/components/Spinner';
-import { Truck, TrendingUp, BarChart3, Info, AlertCircle } from 'lucide-react';
+import { Truck, BarChart3, Info, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export default function ReportsPage() {
@@ -13,20 +13,8 @@ export default function ReportsPage() {
     async function fetchReport() {
       const { data: variants, error } = await supabase
         .from('product_variants')
-        .select(`
-          *,
-          products (
-            name
-          )
-        `);
-      
-      if (error) {
-        console.error("Report Fetch Error:", error);
-      }
-      
-      if (variants) {
-        setData(variants);
-      }
+        .select(`*, products (name)`);
+      if (data) setData(variants || []);
       setLoading(false);
     }
     fetchReport();
@@ -38,51 +26,35 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-end">
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight italic uppercase">Business Intelligence</h2>
-          <p className="text-slate-400 text-sm font-medium">Detailed Profit & Logistics Analysis</p>
+          <h2 className="text-2xl font-bold text-slate-800">Business Intelligence</h2>
+          <p className="text-slate-500 text-sm">Detailed profit margin and logistics analysis</p>
         </div>
-        <div className="bg-white px-4 py-2 rounded-xl border border-slate-100 flex items-center gap-3 shadow-sm text-nowrap">
-           <BarChart3 size={20} className="text-blue-600" />
-           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
-             Live Sync:<br/><span className="text-slate-800">Operational</span>
-           </span>
+        <div className="flex gap-2">
+            <button onClick={() => window.print()} className="bg-white border border-gray-300 text-slate-700 px-4 py-2 rounded text-sm font-medium hover:bg-gray-50">Print</button>
+            <button className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700">Export CSV</button>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto text-nowrap">
-          <table className="w-full text-left">
+          <table className="w-full text-left text-sm">
             <thead>
-              <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b">
-                <th className="px-8 py-5">Product Details</th>
-                <th className="px-6 py-5">Cost (RM)</th>
-                <th className="px-6 py-5">Retail (RM)</th>
-                <th className="px-6 py-5 text-blue-600">Profit / Item</th>
-                <th className="px-6 py-5 text-orange-600">Margin %</th>
-                <th className="px-8 py-5">Unit CBM (m³)</th>
+              <tr className="bg-gray-50 text-gray-600 font-medium border-b border-gray-100">
+                <th className="px-6 py-3">Product SKU</th>
+                <th className="px-6 py-3">Cost (RM)</th>
+                <th className="px-6 py-3">Retail (RM)</th>
+                <th className="px-6 py-3">Profit / Unit</th>
+                <th className="px-6 py-3">Margin %</th>
+                <th className="px-6 py-3">CBM (m³)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="py-24 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <Spinner size={32} className="text-blue-600" />
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Generating BI Data...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : data.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-24 text-center text-slate-400 font-bold uppercase text-xs">
-                    No data available for analysis. Add products first.
-                  </td>
-                </tr>
+                <tr><td colSpan={6} className="py-20 text-center text-gray-400">Generating report...</td></tr>
               ) : data.map((variant) => {
-                const productName = variant.products?.name || "Unnamed Product";
                 const cost = Number(variant.cost_price) || 0;
                 const sell = Number(variant.price_sell) || 0;
                 const profit = sell - cost;
@@ -90,40 +62,30 @@ export default function ReportsPage() {
                 const cbm = calculateCBM(variant.length_cm, variant.width_cm, variant.height_cm);
 
                 return (
-                  <tr key={variant.id} className="hover:bg-blue-50/20 transition-colors group">
-                    <td className="px-8 py-5">
-                      <div className="font-bold text-slate-800 flex items-center gap-2">
-                        {/* FIX: Wrapped AlertCircle in span to handle the title prop correctly for TypeScript */}
-                        {!variant.products && (
-                          <span title="Missing Product Link" className="cursor-help">
-                            <AlertCircle size={14} className="text-red-500" />
-                          </span>
-                        )}
-                        {productName}
-                      </div>
-                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">SKU: {variant.sku}</div>
+                  <tr key={variant.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-slate-800">{variant.products?.name || "Part"}</div>
+                      <div className="text-xs text-slate-500 font-mono">{variant.sku}</div>
                     </td>
-                    <td className="px-6 py-5 text-slate-500 font-medium italic">RM {cost.toFixed(2)}</td>
-                    <td className="px-6 py-5 text-slate-800 font-bold underline decoration-slate-100 underline-offset-4">RM {sell.toFixed(2)}</td>
-                    <td className="px-6 py-5">
-                      <span className="text-blue-600 font-black italic">RM {profit.toFixed(2)}</span>
-                    </td>
-                    <td className="px-6 py-5">
+                    <td className="px-6 py-4 text-slate-500 font-medium">RM {cost.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-slate-900 font-semibold text-right sm:text-left">RM {sell.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-blue-600 font-medium">RM {profit.toFixed(2)}</td>
+                    <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-16 bg-slate-100 h-2 rounded-full overflow-hidden shadow-inner">
+                        <div className="w-16 bg-gray-100 h-1.5 rounded-full overflow-hidden">
                           <div 
                             className={clsx(
-                              "h-full transition-all duration-1000",
-                              margin > 30 ? "bg-emerald-500" : margin > 15 ? "bg-blue-500" : "bg-orange-500"
+                              "h-full transition-all",
+                              margin > 20 ? "bg-green-500" : "bg-blue-500"
                             )} 
-                            style={{ width: `${Math.min(Math.max(margin, 0), 100)}%` }}
+                            style={{ width: `${Math.min(margin, 100)}%` }}
                           ></div>
                         </div>
-                        <span className="text-xs font-black text-slate-700">{margin.toFixed(1)}%</span>
+                        <span className="text-xs font-semibold text-slate-700">{margin.toFixed(1)}%</span>
                       </div>
                     </td>
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg w-fit">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 font-mono text-xs text-slate-400">
                         <Truck size={14} className="text-slate-300"/>
                         {cbm > 0 ? cbm.toFixed(4) : "N/A"}
                       </div>
@@ -136,30 +98,11 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="bg-slate-900 p-8 rounded-3xl text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl shadow-slate-200">
-         <div className="flex items-center gap-5">
-            <div className="bg-blue-600 p-4 rounded-2xl text-white shadow-lg shadow-blue-500/20"><Info size={28}/></div>
-            <div>
-               <h4 className="font-black uppercase text-sm italic tracking-[0.2em] text-blue-400">BI Reference Guide</h4>
-               <p className="text-xs font-medium text-slate-400 max-w-md leading-relaxed">
-                 Margins are calculated using Retail POS price as the base. 
-                 CBM formula applied: <span className="text-white font-bold ml-1">(L × W × H) ÷ 1,000,000.</span>
-               </p>
-            </div>
-         </div>
-         <div className="flex gap-3">
-            <button 
-              onClick={() => window.print()}
-              className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl font-black text-xs transition-all uppercase tracking-widest border border-white/5 active:scale-95"
-            >
-              Print Report
-            </button>
-            <button 
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-2xl font-black text-xs shadow-xl shadow-blue-500/20 transition-all active:scale-95 uppercase tracking-widest"
-            >
-              Export Excel
-            </button>
-         </div>
+      <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex items-center gap-3">
+         <Info size={20} className="text-blue-500" />
+         <p className="text-xs text-blue-700 font-medium">
+            Margins are calculated based on POS retail pricing. CBM uses the standard logistics formula: (L×W×H)/1,000,000.
+         </p>
       </div>
     </div>
   );
