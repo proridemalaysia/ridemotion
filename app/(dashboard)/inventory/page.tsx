@@ -1,141 +1,111 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Package, Search, Plus, RotateCw, Save, Edit3, Archive } from 'lucide-react';
-import { clsx } from 'clsx';
-import ProductModal from '@/components/ProductModal';
+import { Search, Plus } from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 
+const BRANDS = ["All Parts", "4FLEX", "FTuned", "Grantt", "Kayaba", "Powerbrake", "Proride"];
+
 export default function InventoryPage() {
-  const [products, setProducts] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [pendingChanges, setPendingChanges] = useState<any>({});
+  const [selectedBrand, setSelectedBrand] = useState("All Parts");
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => {
+    fetchInventory();
+  }, []);
 
-  async function fetchProducts() {
+  async function fetchInventory() {
     setLoading(true);
-    const { data } = await supabase
-      .from('products')
-      .select(`*, product_variants (*)`)
-      .eq('is_archived', false)
-      .order('created_at', { ascending: false });
-    if (data) setProducts(data);
+    const { data } = await supabase.from('product_variants').select('*, products(*)').order('sku');
+    if (data) setItems(data);
     setLoading(false);
   }
-
-  const handlePriceChange = (variantId: string, field: string, value: string) => {
-    setPendingChanges({ ...pendingChanges, [variantId]: { ...pendingChanges[variantId], [field]: parseFloat(value) } });
-  };
-
-  const saveBulkChanges = async () => {
-    setLoading(true);
-    for (const variantId in pendingChanges) {
-      await supabase.from('product_variants').update(pendingChanges[variantId]).eq('id', variantId);
-    }
-    setPendingChanges({});
-    setEditMode(false);
-    fetchProducts();
-  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Inventory Master</h2>
-          <p className="text-slate-500 text-sm">Manage parts, prices, and stock levels</p>
+        <h2 className="text-2xl font-bold text-slate-800">Inventory Management</h2>
+        <button className="bg-blue-600 text-white px-4 py-1.5 rounded-md text-[12px] font-semibold hover:bg-blue-700 transition-all flex items-center gap-1 shadow-sm">
+          <Plus size={14} /> Add New Item
+        </button>
+      </div>
+
+      {/* Filter Toolbar */}
+      <div className="space-y-4">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+          <input 
+            type="text" 
+            placeholder="Search Code, SKU or Model..." 
+            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-md text-[13px] outline-none focus:ring-1 focus:ring-blue-500" 
+          />
         </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setEditMode(!editMode)}
-            className={clsx(
-              "px-4 py-2 rounded text-sm font-medium transition-all flex items-center gap-2",
-              editMode ? "bg-amber-100 text-amber-700" : "bg-white border border-gray-300 text-slate-700 hover:bg-gray-50"
-            )}
-          >
-            <Edit3 size={16} /> {editMode ? 'Cancel Edit' : 'Edit Prices'}
-          </button>
-          
-          {editMode ? (
-            <button onClick={saveBulkChanges} className="bg-green-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-green-700 transition-all flex items-center gap-2">
-              <Save size={16} /> Save Changes
-            </button>
-          ) : (
-            <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 transition-all flex items-center gap-2">
-              <Plus size={16} /> Add Part
-            </button>
-          )}
+
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+           {BRANDS.map(brand => (
+             <button 
+                key={brand}
+                onClick={() => setSelectedBrand(brand)}
+                className={clsx(
+                  "px-4 py-1.5 rounded-md text-[11px] font-semibold whitespace-nowrap transition-all border",
+                  selectedBrand === brand ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-500 border-gray-200 hover:bg-gray-50"
+                )}
+             >
+               {brand}
+             </button>
+           ))}
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center">
-           <div className="relative w-80">
-              <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
-              <input type="text" placeholder="Search SKU, Name..." className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500 outline-none" />
-           </div>
-           <button onClick={fetchProducts} className="p-2 text-gray-400 hover:text-blue-600"><RotateCw size={18} /></button>
-        </div>
-
+      {/* Main High-Density Table */}
+      <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50 text-gray-600 font-medium border-b border-gray-100">
-                <th className="px-6 py-3">Product Name</th>
-                <th className="px-6 py-3">SKU</th>
-                <th className="px-6 py-3 text-center">Stock</th>
-                <th className="px-6 py-3">Retail (RM)</th>
-                <th className="px-6 py-3">Online (RM)</th>
-                <th className="px-6 py-3 text-right">Actions</th>
+              <tr className="bg-gray-50 border-b border-gray-200 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                <th className="px-4 py-3">Code</th>
+                <th className="px-4 py-3">Product Description</th>
+                <th className="px-4 py-3 text-right">Cost (USD)</th>
+                <th className="px-4 py-3 text-right">Cost (RM)</th>
+                <th className="px-4 py-3 text-right">Sell</th>
+                <th className="px-4 py-3 text-right">Online</th>
+                <th className="px-4 py-3 text-right">Prop</th>
+                <th className="px-4 py-3 text-center">Stock</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading && products.length === 0 ? (
-                <tr><td colSpan={6} className="py-20 text-center text-gray-400">Loading inventory...</td></tr>
-              ) : products.map((p) => {
-                const variant = p.product_variants?.[0];
-                return (
-                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-slate-800">{p.name}</div>
-                      <div className="text-xs text-slate-500">{p.brand_name}</div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600 font-mono text-xs">{variant?.sku}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={clsx(
-                        "px-2 py-0.5 rounded text-[11px] font-semibold",
-                        variant?.stock_quantity < 5 ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
-                      )}>
-                        {variant?.stock_quantity}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                       {editMode ? (
-                         <input type="number" defaultValue={variant?.price_sell} className="w-20 p-1 border rounded text-xs" onChange={(e) => handlePriceChange(variant.id, 'price_sell', e.target.value)} />
-                       ) : (
-                         `RM ${variant?.price_sell?.toFixed(2)}`
-                       )}
-                    </td>
-                    <td className="px-6 py-4">
-                       {editMode ? (
-                         <input type="number" defaultValue={variant?.price_online} className="w-20 p-1 border rounded text-xs" onChange={(e) => handlePriceChange(variant.id, 'price_online', e.target.value)} />
-                       ) : (
-                         `RM ${variant?.price_online?.toFixed(2)}`
-                       )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                       <button className="text-slate-400 hover:text-red-600"><Archive size={16} /></button>
-                    </td>
-                  </tr>
-                );
-              })}
+            <tbody className="divide-y divide-gray-100 text-[12px]">
+              {loading ? (
+                <tr><td colSpan={8} className="py-20 text-center"><Spinner /></td></tr>
+              ) : items.map((item) => (
+                <tr key={item.id} className="hover:bg-blue-50/30 group transition-colors">
+                  <td className="px-4 py-2.5 font-bold text-slate-800 tracking-tight">{item.sku}</td>
+                  <td className="px-4 py-2.5">
+                     <div className="font-medium text-slate-700 uppercase tracking-tight line-clamp-1">{item.products?.name}</div>
+                     <div className="text-[10px] text-slate-400 font-medium uppercase">{item.position} • {item.products?.brand_name}</div>
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-slate-400 italic">${item.buy_usd || '-'}</td>
+                  <td className="px-4 py-2.5 text-right font-medium text-slate-500">RM {item.cost_price?.toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-right font-bold text-blue-700">RM {item.price_sell?.toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-right font-medium text-slate-600">{item.price_online?.toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-right text-slate-400">{item.price_proposal?.toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    <div className={clsx(
+                      "inline-flex flex-col items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold min-w-[30px]",
+                      item.stock_quantity < 5 ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"
+                    )}>
+                      {item.stock_quantity}
+                      <span className="text-[8px] opacity-60 font-normal">Ratio: {item.packing_ratio}</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </div>
-      <ProductModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={fetchProducts} />
     </div>
   );
 }
+
+const clsx = (...classes: any) => classes.filter(Boolean).join(' ');
