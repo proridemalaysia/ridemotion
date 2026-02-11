@@ -1,13 +1,10 @@
 "use client";
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { LogIn, Package, ShieldCheck, Eye, EyeOff } from 'lucide-react';
-import { Spinner } from '@/components/Spinner';
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -15,48 +12,70 @@ export default function LoginPage() {
     setLoading(true);
     
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      console.log("Starting login...");
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim(),
+      });
+
+      if (error) {
+        alert(error.message);
+        setLoading(false);
+        return;
+      }
 
       if (data.user) {
-        // BYPASS ALL CHECKS: Go straight to admin
-        window.location.replace('/admin');
+        console.log("Login success, redirecting...");
+        // This is a direct browser command to change the page
+        // It does not depend on React or any other scripts
+        window.location.href = '/admin';
       }
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err) {
+      console.error("Crash:", err);
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto mt-20 p-10 bg-white rounded-3xl shadow-2xl border">
-      <div className="text-center mb-10">
-        <div className="bg-orange-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white shadow-lg">
-            <Package size={32} />
-        </div>
-        <h2 className="text-2xl font-black text-slate-800 uppercase italic">Admin Login</h2>
-      </div>
-
-      <form onSubmit={handleLogin} className="space-y-5">
-        <div>
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Email</label>
-          <input required type="email" className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-500" value={email} onChange={e => setEmail(e.target.value)} />
-        </div>
-        <div className="relative">
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Password</label>
-          <input required type={showPassword ? "text" : "password"} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-500" value={password} onChange={e => setPassword(e.target.value)} />
-          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-10 text-slate-300">
-            {showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}
-          </button>
-        </div>
-        <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase flex justify-center items-center gap-2 shadow-xl hover:bg-slate-800 transition-all">
-          {loading ? <Spinner size={16} /> : <LogIn size={18} />} Enter ERP System
+    <div style={{ maxWidth: '400px', margin: '100px auto', padding: '40px', fontFamily: 'sans-serif', border: '1px solid #eee', borderRadius: '20px', textAlign: 'center' }}>
+      <h1 style={{ fontWeight: 900, fontSize: '24px', marginBottom: '10px' }}>PARTSHUB LOGIN</h1>
+      <p style={{ color: '#666', fontSize: '14px', marginBottom: '30px' }}>Enter your credentials to access the ERP</p>
+      
+      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <input 
+          required
+          type="email" 
+          placeholder="Email Address" 
+          style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', outline: 'none' }}
+          onChange={e => setEmail(e.target.value)} 
+        />
+        <input 
+          required
+          type="password" 
+          placeholder="Password" 
+          style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', outline: 'none' }}
+          onChange={e => setPassword(e.target.value)} 
+        />
+        <button 
+          type="submit" 
+          disabled={loading}
+          style={{ 
+            width: '100%', 
+            padding: '15px', 
+            borderRadius: '10px', 
+            backgroundColor: loading ? '#ccc' : '#000', 
+            color: '#fff', 
+            fontWeight: 'bold', 
+            border: 'none', 
+            cursor: loading ? 'not-allowed' : 'pointer' 
+          }}
+        >
+          {loading ? "AUTHENTICATING..." : "SIGN IN TO ERP"}
         </button>
       </form>
 
-      <div className="mt-8 p-4 bg-blue-50 rounded-2xl flex gap-3 items-center border border-blue-100">
-        <ShieldCheck className="text-blue-600" size={20} />
-        <p className="text-[10px] text-blue-800 font-bold uppercase tracking-tight">Accessing Secure Production Instance</p>
+      <div style={{ marginTop: '20px', fontSize: '12px', color: '#999' }}>
+        New staff? Please contact the administrator.
       </div>
     </div>
   );
