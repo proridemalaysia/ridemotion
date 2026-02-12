@@ -1,10 +1,9 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Wallet, Plus, Calendar, CheckCircle, AlertCircle, History } from 'lucide-react';
+import { Wallet, Plus, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 import ZReportModal from '@/components/ZReportModal';
-import { clsx } from 'clsx';
 
 export default function FinancePage() {
   const [closings, setClosings] = useState<any[]>([]);
@@ -16,6 +15,7 @@ export default function FinancePage() {
   }, []);
 
   async function fetchClosings() {
+    setLoading(true);
     const { data } = await supabase.from('daily_closings').select('*').order('closing_date', { ascending: false });
     if (data) setClosings(data);
     setLoading(false);
@@ -24,59 +24,48 @@ export default function FinancePage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Daily Closings</h2>
-          <p className="text-slate-500 text-sm">Review shift reconciliations and cash balance history</p>
-        </div>
+        <h2 className="text-2xl font-bold text-slate-800">Daily Financial Closings</h2>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 flex items-center gap-2 shadow-sm"
+          className="bg-blue-600 text-white px-4 py-1.5 rounded-md text-[12px] font-semibold hover:bg-blue-700 transition-all flex items-center gap-1 shadow-sm"
         >
-          <Plus size={18} /> Perform Closing
+          <Plus size={14} /> Perform Shift Closing
         </button>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
-           <History size={16} className="text-gray-400" />
-           <span className="text-xs font-semibold uppercase text-gray-500 tracking-wider">Historical Z-Reports</span>
-        </div>
+      {/* Finance History Table */}
+      <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="text-gray-600 font-medium border-b border-gray-100 bg-gray-50/30">
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">System Cash</th>
-                <th className="px-6 py-4">Actual Cash</th>
-                <th className="px-6 py-4">Variance</th>
-                <th className="px-6 py-4 text-center">Status</th>
+              <tr className="bg-gray-50 border-b border-gray-200 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                <th className="px-4 py-3">Closing Date</th>
+                <th className="px-4 py-3 text-right">System Expected</th>
+                <th className="px-4 py-3 text-right">Staff Declared</th>
+                <th className="px-4 py-3 text-right">Variance</th>
+                <th className="px-4 py-3 text-center">Result</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 text-[12px]">
               {loading ? (
                 <tr><td colSpan={5} className="py-20 text-center"><Spinner /></td></tr>
               ) : closings.length === 0 ? (
-                <tr><td colSpan={5} className="py-20 text-center text-gray-400">No shift records found</td></tr>
+                <tr><td colSpan={5} className="py-20 text-center text-slate-400 font-medium italic">No shift records available.</td></tr>
               ) : closings.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-slate-600 font-medium">
-                    {new Date(c.closing_date).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-slate-500 font-mono">RM {Number(c.expected_cash).toFixed(2)}</td>
-                  <td className="px-6 py-4 text-slate-900 font-semibold font-mono">RM {Number(c.actual_cash).toFixed(2)}</td>
-                  <td className="px-6 py-4">
-                    <span className={clsx(
-                      "font-semibold font-mono",
-                      c.variance < 0 ? "text-red-600" : c.variance > 0 ? "text-blue-600" : "text-green-600"
-                    )}>
-                      {c.variance === 0 ? "Balanced" : `${c.variance > 0 ? '+' : ''}RM ${Number(c.variance).toFixed(2)}`}
+                <tr key={c.id} className="hover:bg-blue-50/30 transition-colors">
+                  <td className="px-4 py-2.5 text-slate-600 font-medium">{new Date(c.closing_date).toLocaleDateString('en-MY')}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-slate-500">RM {Number(c.expected_cash).toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-right font-bold text-slate-800">RM {Number(c.actual_cash).toFixed(2)}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <span className={`font-bold italic ${Number(c.variance) < 0 ? 'text-red-600' : Number(c.variance) > 0 ? 'text-blue-600' : 'text-green-600'}`}>
+                      {Number(c.variance) === 0 ? "BALANCED" : `RM ${Number(c.variance).toFixed(2)}`}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    {c.variance === 0 ? (
-                      <CheckCircle className="text-green-500 mx-auto" size={18} />
+                  <td className="px-4 py-2.5 text-center">
+                    {Number(c.variance) === 0 ? (
+                      <CheckCircle className="text-green-500 mx-auto" size={16} />
                     ) : (
-                      <AlertCircle className="text-red-500 mx-auto" size={18} />
+                      <AlertCircle className="text-red-500 mx-auto" size={16} />
                     )}
                   </td>
                 </tr>
