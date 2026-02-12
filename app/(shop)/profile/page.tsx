@@ -1,7 +1,10 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { User, Star, Package, Clock, ShieldCheck, MapPin, Truck, ExternalLink } from 'lucide-react';
+import { 
+  User, Star, Package, Clock, ShieldCheck, 
+  MapPin, Truck, ExternalLink, ChevronRight 
+} from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 
 export default function CustomerProfile() {
@@ -24,72 +27,135 @@ export default function CustomerProfile() {
     setLoading(false);
   }
 
-  if (loading) return <div className="flex justify-center py-40"><Spinner size={40} className="text-orange-500" /></div>;
+  if (loading) return <div className="flex justify-center py-40"><Spinner size={32} className="text-orange-500" /></div>;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
-      {/* Profile Header */}
-      <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-xl flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
-        <div className="absolute -right-20 -top-20 w-64 h-64 bg-orange-50 rounded-full blur-3xl opacity-50"></div>
-        <div className="w-32 h-32 bg-slate-900 rounded-3xl flex items-center justify-center text-white relative z-10 shadow-2xl">
-           <User size={60} strokeWidth={1} />
+    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
+      
+      {/* 1. Header & Identity Section */}
+      <div className="bg-white rounded border border-gray-200 shadow-sm p-6 flex flex-col md:flex-row gap-6 items-center md:items-start">
+        <div className="w-20 h-20 bg-slate-900 rounded flex items-center justify-center text-white shadow-md">
+           <User size={40} strokeWidth={1.5} />
         </div>
-        <div className="flex-1 text-center md:text-left relative z-10">
-           <h1 className="text-3xl font-black text-slate-800 tracking-tight italic uppercase">{profile?.full_name || 'Valued Customer'}</h1>
-           <div className="flex flex-wrap gap-4 mt-6 justify-center md:justify-start">
-              <div className="bg-orange-600 text-white px-5 py-2 rounded-2xl flex items-center gap-3 shadow-lg shadow-orange-200">
-                 <Star size={20} fill="currentColor" />
-                 <div><p className="text-[9px] font-black uppercase tracking-widest leading-none">Loyalty Points</p><p className="text-xl font-black tracking-tighter">{profile?.loyalty_points || 0}</p></div>
+
+        <div className="flex-1 text-center md:text-left">
+           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+            {profile?.full_name || 'Valued Member'}
+           </h1>
+           <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mt-1">
+            Registered Account • Since {new Date(profile?.created_at).getFullYear() || '2024'}
+           </p>
+           
+           <div className="flex flex-wrap gap-3 mt-4 justify-center md:justify-start">
+              <div className="bg-orange-50 border border-orange-100 text-orange-700 px-4 py-1.5 rounded flex items-center gap-2">
+                 <Star size={14} fill="currentColor" />
+                 <span className="text-[11px] font-bold uppercase">Loyalty: {profile?.loyalty_points || 0} Pts</span>
+              </div>
+              <div className="bg-blue-50 border border-blue-100 text-blue-700 px-4 py-1.5 rounded flex items-center gap-2">
+                 <Package size={14} />
+                 <span className="text-[11px] font-bold uppercase">{orders.length} Total Orders</span>
               </div>
            </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+         {/* 2. Main Order History Table (High-Density) */}
          <div className="lg:col-span-2 space-y-4">
-            <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2">
-               <Clock size={16} className="text-orange-600" /> My Purchases
-            </h3>
-            {orders.map(order => (
-               <div key={order.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all hover:border-orange-200 overflow-hidden relative group">
-                  <div className="flex justify-between items-start">
-                     <div>
-                        <p className="font-black text-slate-800 text-sm uppercase italic">Order #ORD-{order.order_number}</p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{new Date(order.created_at).toLocaleDateString()}</p>
-                     </div>
-                     <div className="text-right">
-                        <p className="font-black text-orange-600 text-xl tracking-tighter italic">RM {order.total_amount.toFixed(2)}</p>
-                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${order.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                           {order.status}
-                        </span>
-                     </div>
-                  </div>
+            <div className="flex items-center justify-between px-1">
+               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                  <Clock size={14} /> Order History
+               </h3>
+            </div>
 
-                  {/* Tracking Number Section */}
-                  {order.tracking_number && (
-                    <div className="mt-6 pt-6 border-t border-slate-50 flex items-center justify-between bg-blue-50/50 -mx-6 -mb-6 p-6">
-                       <div className="flex items-center gap-3">
-                          <div className="bg-blue-600 p-2 rounded-lg text-white"><Truck size={18}/></div>
-                          <div>
-                             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Courier: {order.courier_name}</p>
-                             <p className="text-sm font-black text-slate-800 tracking-tight">{order.tracking_number}</p>
-                          </div>
-                       </div>
-                       <button className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline decoration-2">
-                          Track Parcel <ExternalLink size={14}/>
-                       </button>
-                    </div>
-                  )}
-               </div>
-            ))}
-            {orders.length === 0 && <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-100 text-slate-400 font-bold italic">No orders found.</div>}
+            <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden text-sm">
+               <table className="w-full text-left border-collapse">
+                  <thead>
+                     <tr className="bg-gray-50 border-b border-gray-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <th className="px-4 py-3">Order Ref</th>
+                        <th className="px-4 py-3">Date</th>
+                        <th className="px-4 py-3 text-right">Amount</th>
+                        <th className="px-4 py-3 text-center">Status</th>
+                        <th className="px-4 py-3 text-right">Action</th>
+                     </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                     {orders.map(order => (
+                        <React.Fragment key={order.id}>
+                           <tr className="hover:bg-gray-50 transition-colors group">
+                              <td className="px-4 py-3 font-semibold text-slate-700">#ORD-{order.order_number}</td>
+                              <td className="px-4 py-3 text-slate-500 text-xs">{new Date(order.created_at).toLocaleDateString('en-MY')}</td>
+                              <td className="px-4 py-3 text-right font-bold text-slate-900">RM {order.total_amount.toFixed(2)}</td>
+                              <td className="px-4 py-3 text-center">
+                                 <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                                    order.status === 'completed' 
+                                    ? 'bg-green-50 text-green-700 border-green-100' 
+                                    : 'bg-amber-50 text-amber-700 border-amber-100'
+                                 }`}>
+                                    {order.status}
+                                 </span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                 <button className="text-blue-600 hover:text-blue-800 transition-colors">
+                                    <ChevronRight size={18} />
+                                 </button>
+                              </td>
+                           </tr>
+                           {/* Integrated Tracking Info if available */}
+                           {order.tracking_number && (
+                             <tr className="bg-blue-50/30">
+                               <td colSpan={5} className="px-4 py-2 border-b border-gray-100">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                     <div className="flex items-center gap-2 font-medium text-blue-700">
+                                        <Truck size={14} />
+                                        <span>Shipped via {order.courier_name || 'Courier'} • <b>{order.tracking_number}</b></span>
+                                     </div>
+                                     <button className="flex items-center gap-1 font-bold text-blue-600 hover:underline">
+                                        Track <ExternalLink size={10} />
+                                     </button>
+                                  </div>
+                               </td>
+                             </tr>
+                           )}
+                        </React.Fragment>
+                     ))}
+                  </tbody>
+               </table>
+               {orders.length === 0 && (
+                  <div className="py-20 text-center text-slate-400 italic">No purchase history found.</div>
+               )}
+            </div>
          </div>
 
-         <div className="space-y-6">
-            <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
-               <MapPin className="absolute -right-4 -bottom-4 opacity-10 w-32 h-32" />
-               <h3 className="font-black uppercase text-[10px] tracking-widest text-blue-400 mb-4">Default Shipping</h3>
-               <p className="text-xs text-slate-400 font-medium leading-relaxed italic">"You can update your default address in the account settings."</p>
+         {/* 3. Account Sidebar Area */}
+         <div className="space-y-4">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Account Info</h3>
+            
+            <div className="bg-slate-900 rounded p-6 text-white shadow-md">
+               <div className="flex items-center gap-2 mb-4 text-blue-400">
+                  <MapPin size={16} />
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Default Shipping</span>
+               </div>
+               <p className="text-xs text-slate-400 leading-relaxed font-medium">
+                  {profile?.address || "No address saved yet. Please update your profile for faster checkout."}
+               </p>
+               <button className="mt-6 w-full py-2 bg-white/10 hover:bg-white/20 rounded text-[11px] font-bold uppercase tracking-widest transition-all">
+                  Edit Addresses
+               </button>
+            </div>
+
+            <div className="bg-white rounded border border-gray-200 shadow-sm p-6">
+               <div className="flex items-center gap-2 mb-3 text-orange-600">
+                  <ShieldCheck size={16} />
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Loyalty Perks</span>
+               </div>
+               <p className="text-xs text-slate-500 leading-relaxed">
+                  Earn points on every purchase. Redemptions start from 100 points for a RM2 discount.
+               </p>
+               <div className="mt-4 w-full bg-gray-100 h-1 rounded-full overflow-hidden">
+                  <div className="bg-orange-500 h-full w-[20%]"></div>
+               </div>
+               <p className="text-[10px] text-gray-400 mt-2 font-medium uppercase">80 pts until next reward</p>
             </div>
          </div>
       </div>
