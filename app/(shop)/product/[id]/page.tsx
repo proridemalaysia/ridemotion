@@ -4,7 +4,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { 
   ShoppingCart, CheckCircle2, Package, ArrowLeft, 
-  Settings, Save, ExternalLink, ShieldCheck, Tag, Percent 
+  Settings, Save, ExternalLink, ShieldCheck, Tag, 
+  Plus, Trash2, ChevronLeft, ChevronRight 
 } from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 import { useCart } from '@/context/CartContext';
@@ -23,8 +24,14 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<any>(null);
   const [variants, setVariants] = useState<any[]>([]);
   
+  // Gallery & Selection States
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedBundle, setSelectedBundle] = useState<'front' | 'rear' | 'full'>('full');
-  const [editData, setEditData] = useState({ image_url: '', discount_percent: 0 });
+  
+  // Admin Edit States
+  const [editImages, setEditImages] = useState<string[]>([]);
+  const [newImageUrl, setNewImageUrl] = useState("");
+  const [editDiscount, setEditDiscount] = useState(0);
 
   useEffect(() => {
     fetchData();
@@ -39,25 +46,18 @@ export default function ProductDetailPage() {
         setIsAdmin(profile?.role === 'admin' || profile?.role === 'staff');
       }
 
-      const { data: prodData, error: pError } = await supabase.from('products').select('*, brands(name)').eq('id', id).single();
-      const { data: varData, error: vError } = await supabase.from('product_variants').select('*').eq('product_id', id);
-
-      if (pError) throw pError;
+      const { data: prodData } = await supabase.from('products').select('*, brands(name)').eq('id', id).single();
+      const { data: varData } = await supabase.from('product_variants').select('*').eq('product_id', id);
 
       if (prodData) {
         setProduct(prodData);
-        setEditData({ 
-          image_url: prodData.image_url || '', 
-          discount_percent: varData?.[0]?.discount_percent || 0 
-        });
+        setEditImages(prodData.image_urls || []);
+        setEditDiscount(varData?.[0]?.discount_percent || 0);
       }
       if (varData) setVariants(varData);
       
-    } catch (err) { 
-      console.error("Fetch Error:", err); 
-    } finally { 
-      setLoading(false); 
-    }
+    } catch (err) { console.error(err); } 
+    finally { setLoading(false); }
   }
 
   const bundles = useMemo(() => {
@@ -92,44 +92,27 @@ export default function ProductDetailPage() {
     };
   }, [variants]);
 
-  // Pricing Logic scoped correctly for the whole component
   const currentPrice = bundles[selectedBundle].price;
-  const finalPrice = currentPrice * (1 - (editData.discount_percent / 100));
-
-  const handleAddToCart = () => {
-    bundles[selectedBundle].ids.forEach(variantId => addToCart(variantId));
-    alert(`${selectedBundle.toUpperCase()} Set added to cart!`);
-  };
+  const finalPrice = currentPrice * (1 - (editDiscount / 100));
 
   const handleUpdate = async () => {
     setSyncing(true);
     try {
-      const { error: imgError } = await supabase
-        .from('products')
-        .update({ image_url: editData.image_url })
-        .eq('id', id);
-
-      if (imgError) throw imgError;
-
-      const { error: discError } = await supabase
-        .from('product_variants')
-        .update({ discount_percent: editData.discount_percent })
-        .eq('product_id', id);
-
-      if (discError) throw discError;
-
-      alert("Data synchronized successfully!");
+      await supabase.from('products').update({ image_urls: editImages }).eq('id', id);
+      await supabase.from('product_variants').update({ discount_percent: editDiscount }).eq('product_id', id);
       setIsEditing(false);
       fetchData();
-    } catch (err: any) { 
-      alert("Save Error: " + err.message); 
-    } finally { 
-      setSyncing(false); 
-    }
+    } catch (err: any) { alert(err.message); }
+    finally { setSyncing(false); }
+  };
+
+  const addImage = () => {
+    if (!newImageUrl) return;
+    setEditImages([...editImages, newImageUrl]);
+    setNewImageUrl("");
   };
 
   if (loading) return <div className="flex justify-center py-40"><Spinner size={40} className="text-blue-600" /></div>;
-  if (!product) return <div className="text-center py-40">Product not found.</div>;
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 animate-in fade-in duration-500">
@@ -138,64 +121,86 @@ export default function ProductDetailPage() {
       </button>
 
       <div className="flex flex-col lg:flex-row gap-12">
-        {/* LEFT: IMAGE AREA */}
-        <div className="w-full lg:w-1/2">
+        
+        {/* LEFT: LIGHTBOX GALLERY */}
+        <div className="w-full lg:w-1/2 space-y-4">
           <div className="bg-white rounded-[40px] border border-slate-200 aspect-square flex items-center justify-center overflow-hidden shadow-sm relative group">
-            {product.image_url ? (
-              <img src={product.image_url} className="w-full h-full object-contain p-10 group-hover:scale-105 transition-transform duration-700" alt="Part" />
+            {editImages.length > 0 ? (
+              <img src={editImages[activeImageIndex]} className="w-full h-full object-contain p-10 transition-all duration-500" alt="Part View" />
             ) : (
-              <div className="text-center text-slate-200">
-                <Package size={160} strokeWidth={1} className="text-slate-200" />
-              </div>
+              <Package size={160} strokeWidth={1} className="text-slate-200" />
             )}
-            {editData.discount_percent > 0 && (
-              <div className="absolute top-8 right-8 bg-red-600 text-white font-bold px-4 py-2 rounded-2xl shadow-xl z-20">
-                {Math.round(editData.discount_percent)}% OFF
+            
+            {editDiscount > 0 && (
+              <div className="absolute top-8 right-8 bg-red-600 text-white font-bold px-4 py-2 rounded-2xl shadow-xl">
+                {Math.round(editDiscount)}% OFF
               </div>
             )}
           </div>
+
+          {/* Thumbnails */}
+          {editImages.length > 1 && (
+            <div className="flex gap-4 overflow-x-auto py-2 scrollbar-hide">
+               {editImages.map((img, idx) => (
+                 <button 
+                  key={idx} 
+                  onClick={() => setActiveImageIndex(idx)}
+                  className={clsx(
+                    "w-20 h-20 rounded-2xl border-2 overflow-hidden shrink-0 transition-all active:scale-90",
+                    activeImageIndex === idx ? "border-blue-600 shadow-md" : "border-transparent opacity-60 hover:opacity-100"
+                  )}
+                 >
+                   <img src={img} className="w-full h-full object-cover" />
+                 </button>
+               ))}
+            </div>
+          )}
         </div>
 
         {/* RIGHT: DETAILS */}
         <div className="w-full lg:w-1/2 space-y-8">
           <div>
-            <span className="text-blue-600 font-bold uppercase tracking-[0.2em] text-[10px] bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
-              {product.brands?.name || 'Genuine'}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-blue-600 font-bold uppercase tracking-[0.2em] text-[10px] bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                {product.brands?.name || 'Genuine'}
+              </span>
+            </div>
+            {/* REQUIREMENT: Category (UPPERCASE) + Name (SAME STYLE/COLOR) */}
             <h1 className="text-4xl font-bold text-slate-900 mt-4 leading-tight uppercase italic tracking-tighter">
-              <span className="text-slate-400 mr-3 uppercase font-medium">{product.category}</span>
+              <span className="mr-3">{product.category}</span>
               {product.name}
             </h1>
-            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-2 font-mono">Item Code: {variants[0]?.item_code}</p>
+            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-2 font-mono italic">Item Code: {variants[0]?.item_code}</p>
           </div>
 
           <div className="bg-white rounded-[32px] p-8 border border-slate-200 shadow-sm relative">
              <div className="flex flex-wrap gap-3 mb-8 border-b border-slate-100 pb-6">
                 {bundles.front.available && (
-                  <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>
+                  <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>
                     Front Set (2pcs)
                   </button>
                 )}
                 {bundles.rear.available && (
-                  <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>
+                  <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>
                     Rear Set (2pcs)
                   </button>
                 )}
-                <button onClick={() => setSelectedBundle('full')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'full' ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>
+                <button onClick={() => setSelectedBundle('full')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'full' ? "bg-slate-900 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>
                   Full Set (4pcs)
                 </button>
              </div>
 
              <div className="flex items-baseline gap-4">
                 <span className="text-5xl font-bold text-slate-900 italic tracking-tighter">RM {finalPrice.toFixed(2)}</span>
-                {editData.discount_percent > 0 && <span className="text-xl text-slate-300 line-through font-bold italic">RM {currentPrice.toFixed(2)}</span>}
+                {editDiscount > 0 && <span className="text-xl text-slate-300 line-through font-bold">RM {currentPrice.toFixed(2)}</span>}
              </div>
              
+             {/* REQUIREMENT: MAINTAIN "ADD TO CART" TEXT */}
              <button 
-              onClick={handleAddToCart} 
-              className="w-full bg-[#2563EB] text-white py-5 rounded-2xl font-bold mt-8 flex items-center justify-center gap-3 hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-100 text-lg"
+              onClick={() => bundles[selectedBundle].ids.forEach(id => addToCart(id))} 
+              className="w-full bg-[#2563EB] text-white py-5 rounded-2xl font-bold mt-8 flex items-center justify-center gap-3 hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-100 text-lg uppercase tracking-widest"
              >
-                <ShoppingCart size={24} strokeWidth={2} /> Add {selectedBundle.toUpperCase()} Bundle to Cart
+                <ShoppingCart size={24} strokeWidth={2} /> Add To Cart
              </button>
           </div>
 
@@ -203,73 +208,55 @@ export default function ProductDetailPage() {
           {isAdmin && (
             <div className="bg-white rounded-[32px] border border-slate-200 overflow-hidden shadow-sm">
                <div className="p-4 bg-slate-50 border-b flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-widest">
-                  <span className="flex items-center gap-2 text-blue-600"><Settings size={14} /> Marketplace Management</span>
-                  <button 
-                    onClick={() => setIsEditing(!isEditing)} 
-                    className="text-blue-600 hover:underline active:scale-90 transition-all font-bold"
-                  >
-                    {isEditing ? 'Cancel Changes' : 'Edit Product Details'}
+                  <span className="flex items-center gap-2 text-blue-600"><Settings size={14} /> Admin Gallery & Pricing</span>
+                  <button onClick={() => setIsEditing(!isEditing)} className="text-blue-600 hover:underline active:scale-90 transition-all font-bold">
+                    {isEditing ? 'Cancel Changes' : 'Manage Images & Discount'}
                   </button>
                </div>
                
                {isEditing && (
                  <div className="p-6 space-y-6 animate-in slide-in-from-top-2 duration-300">
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">ImgBB Image Direct Link</label>
+                    {/* Multi-Image Manager */}
+                    <div className="space-y-3">
+                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Product Images (Paste Links)</label>
                        <div className="flex gap-2">
-                        <input 
-                          className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
-                          value={editData.image_url} 
-                          onChange={e => setEditData({...editData, image_url: e.target.value})} 
-                          placeholder="https://i.ibb.co/..." 
-                        />
-                        <a href="https://imgbb.com" target="_blank" className="p-3 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-blue-600 active:scale-90 transition-all"><ExternalLink size={18}/></a>
+                        <input className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-1 focus:ring-blue-500" value={newImageUrl} onChange={e => setNewImageUrl(e.target.value)} placeholder="ImgBB Link..." />
+                        <button onClick={addImage} className="bg-blue-600 text-white p-3 rounded-xl active:scale-90 transition-all"><Plus size={18}/></button>
+                       </div>
+                       <div className="grid grid-cols-4 gap-2 mt-4">
+                          {editImages.map((img, i) => (
+                            <div key={i} className="relative group aspect-square rounded-lg overflow-hidden border">
+                               <img src={img} className="w-full h-full object-cover" />
+                               <button onClick={() => setEditImages(editImages.filter((_, idx) => idx !== i))} className="absolute inset-0 bg-red-600/80 text-white opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
+                                  <Trash2 size={16} />
+                               </button>
+                            </div>
+                          ))}
                        </div>
                     </div>
                     
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Promotional Discount (%)</label>
-                       <div className="flex items-center gap-4">
-                          <div className="relative">
-                            <input 
-                              type="number" 
-                              className="w-32 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-1 focus:ring-blue-500" 
-                              value={editData.discount_percent} 
-                              onChange={e => setEditData({...editData, discount_percent: parseFloat(e.target.value) || 0})} 
-                            />
-                            <Percent size={14} className="absolute right-3 top-3.5 text-slate-300" />
-                          </div>
-                          <div className="flex items-center gap-2 text-red-600 font-bold text-xs uppercase bg-red-50 px-3 py-2 rounded-xl">
-                            <Tag size={12}/> Saving RM {(currentPrice - finalPrice).toFixed(2)}
-                          </div>
-                       </div>
+                    <div className="space-y-2 pt-4 border-t">
+                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Individual Item Discount (%)</label>
+                       <input type="number" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold" value={editDiscount} onChange={e => setEditDiscount(parseFloat(e.target.value) || 0)} />
                     </div>
 
-                    <button 
-                      onClick={handleUpdate} 
-                      disabled={syncing}
-                      className="w-full bg-[#020617] text-white py-4 rounded-xl font-bold text-xs uppercase tracking-[0.2em] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg"
-                    >
+                    <button onClick={handleUpdate} disabled={syncing} className="w-full bg-[#020617] text-white py-4 rounded-xl font-bold text-xs uppercase tracking-[0.2em] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg">
                        {syncing ? <Spinner size={16} /> : <Save size={16} />}
-                       {syncing ? 'Synchronizing Database...' : 'Sync Product Data'}
+                       {syncing ? 'Saving Array...' : 'Sync All Assets'}
                     </button>
                  </div>
                )}
             </div>
           )}
 
-          {/* Technical Spec Footer */}
           <div className="grid grid-cols-2 gap-4">
              <div className="p-5 bg-slate-50 border border-slate-100 rounded-[24px]">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Stock Location</p>
-                <p className="text-sm font-bold text-slate-700 uppercase italic font-mono">{variants[0]?.bin_location || 'A1-SECTION'}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 text-center">Warehouse Bin</p>
+                <p className="text-sm font-bold text-slate-700 uppercase italic font-mono text-center">{variants[0]?.bin_location || 'A1-SECTION'}</p>
              </div>
              <div className="p-5 bg-slate-50 border border-slate-100 rounded-[24px]">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Availability</p>
-                <div className="flex items-center gap-2">
-                   <div className={`w-2 h-2 rounded-full animate-pulse ${variants[0]?.stock_quantity > 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                   <p className="text-sm font-bold text-slate-700 uppercase tracking-tighter">{variants[0]?.stock_quantity || 0} Units in Warehouse</p>
-                </div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 text-center">Current Stock</p>
+                <p className="text-sm font-bold text-slate-700 uppercase tracking-tighter text-center">{variants[0]?.stock_quantity || 0} Units</p>
              </div>
           </div>
         </div>
