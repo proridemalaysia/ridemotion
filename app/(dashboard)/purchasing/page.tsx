@@ -23,19 +23,20 @@ export default function PurchasingPage() {
       .from('purchases')
       .select(`*, purchase_items (*, product_variants (sku, products (name)))`)
       .order('created_at', { ascending: false });
+    
     if (data) setPurchases(data);
     setLoading(false);
   }
 
   return (
-    <div className="space-y-6">
-      {/* Sub-Tabs Navigation (Reference Style) */}
-      <div className="flex items-center gap-6 border-b border-gray-200 mb-2">
+    <div className="p-8 space-y-6 animate-in fade-in duration-500">
+      {/* Horizontal Sub-Tabs (Reference Style) */}
+      <div className="flex items-center gap-8 border-b border-slate-200 mb-2">
         {TABS.map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`pb-3 text-[13px] font-medium transition-all relative ${
+            className={`pb-4 text-[13px] font-bold uppercase tracking-widest transition-all relative ${
               activeTab === tab ? "text-blue-600" : "text-slate-400 hover:text-slate-600"
             }`}
           >
@@ -46,44 +47,44 @@ export default function PurchasingPage() {
       </div>
 
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-800">{activeTab}</h2>
+        <h2 className="text-2xl font-bold text-slate-800 uppercase italic tracking-tight">{activeTab}</h2>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 text-white px-4 py-1.5 rounded-md text-[12px] font-semibold hover:bg-blue-700 transition-all flex items-center gap-1 shadow-sm"
+          className="bg-[#2563EB] text-white px-4 py-1.5 rounded-md text-[12px] font-bold hover:bg-blue-700 transition-all flex items-center gap-2 shadow-sm uppercase"
         >
-          <Plus size={14} /> New Purchase Order
+          <Plus size={14} strokeWidth={3} /> New Purchase Order
         </button>
       </div>
 
       {/* High-Density Purchase Table */}
-      <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Ref No</th>
-                <th className="px-4 py-3">Supplier</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-right">Total</th>
+              <tr className="bg-slate-50/50 border-b border-gray-200 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <th className="px-5 py-3">Date</th>
+                <th className="px-5 py-3">Ref No</th>
+                <th className="px-5 py-3">Supplier</th>
+                <th className="px-5 py-3 text-center">Status</th>
+                <th className="px-5 py-3 text-right">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-[12px]">
               {loading ? (
                 <tr><td colSpan={5} className="py-20 text-center"><Spinner /></td></tr>
               ) : purchases.length === 0 ? (
-                <tr><td colSpan={5} className="py-20 text-center text-slate-400 italic font-medium">No purchase orders found. Click "New Purchase Order" to start.</td></tr>
+                <tr><td colSpan={5} className="py-24 text-center text-slate-300 font-medium italic uppercase tracking-widest">No purchase orders found. Click "New Purchase Order" to start.</td></tr>
               ) : purchases.map((p) => (
-                <tr key={p.id} className="hover:bg-blue-50/30 transition-colors">
-                  <td className="px-4 py-2.5 text-slate-500">{new Date(p.created_at).toLocaleDateString('en-MY')}</td>
-                  <td className="px-4 py-2.5 font-bold text-slate-700 uppercase tracking-tight">{p.reference_no}</td>
-                  <td className="px-4 py-2.5 font-medium text-slate-600">{p.supplier_name}</td>
-                  <td className="px-4 py-2.5 text-center">
-                    <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-green-100">
+                <tr key={p.id} className="hover:bg-blue-50/30 transition-colors group">
+                  <td className="px-5 py-3 text-slate-500 font-medium">{new Date(p.created_at).toLocaleDateString('en-MY')}</td>
+                  <td className="px-5 py-3 font-bold text-slate-800 uppercase tracking-tighter">{p.reference_no}</td>
+                  <td className="px-5 py-3 font-semibold text-slate-600 uppercase">{p.supplier_name}</td>
+                  <td className="px-5 py-3 text-center">
+                    <span className="bg-green-50 text-green-700 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border border-green-100 tracking-tighter">
                       {p.status}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-right font-bold text-slate-900">
+                  <td className="px-5 py-3 text-right font-bold text-slate-900 font-mono">
                     RM {Number(p.total_amount).toFixed(2)}
                   </td>
                 </tr>
