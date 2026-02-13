@@ -3,87 +3,22 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 15, 23, 42; /* Slate-900 */
-  --background-rgb: 248, 250, 252; /* Slate-50 */
+  --foreground-rgb: 15, 23, 42;
+  --background-rgb: 248, 250, 252;
 }
 
 @layer base {
-  html {
-    /* The "Ghost" fix: ensures smooth scrolling */
-    scroll-behavior: smooth;
-  }
-
   body {
     color: rgb(var(--foreground-rgb));
     background: rgb(var(--background-rgb));
-    
-    /* 1. THE FONT STACK: Prioritizes thin, crisp system fonts */
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    
-    /* 2. THE THINNESS TRICK: Smooths out the font weights */
+    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    
-    /* 3. PROFESSIONAL SPACING: Pulls letters slightly tighter */
-    letter-spacing: -0.015em;
-    
-    /* 4. DEFAULT WEIGHT: Prevents "bleeding" of text */
-    font-weight: 400;
-  }
-
-  /* Standardizing headers to be sharp, not chunky */
-  h1, h2, h3, h4, h5, h6 {
-    font-weight: 600;
-    letter-spacing: -0.025em;
-    color: #0f172a;
-  }
-
-  /* High-Density Table Polish */
-  table {
-    font-variant-numeric: tabular-nums; /* Keeps numbers aligned in columns */
-  }
-
-  /* Scrollbar Polish (Minimalist style) */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #e2e8f0;
-    border-radius: 10px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #cbd5e1;
+    letter-spacing: -0.01em;
   }
 }
 
-/* Custom Utility for the "Thin but readable" look */
-@layer utilities {
-  .text-sharp {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-  
-  .font-data {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    letter-spacing: -0.05em;
-  }
-}
-
-/* Print Optimization for Invoices/Labels */
-@media print {
-  @page {
-    margin: 0;
-    size: auto;
-  }
-  body {
-    background-color: white !important;
-    font-size: 12pt;
-  }
-  .no-print {
-    display: none !important;
-  }
+/* Fix for high-density tables */
+table {
+  font-variant-numeric: tabular-nums;
 }
