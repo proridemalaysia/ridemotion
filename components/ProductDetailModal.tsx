@@ -1,16 +1,25 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { X, Save, Image as ImageIcon, Tag, Info, ShieldCheck, ExternalLink, Package } from 'lucide-react';
+import { X, Save, ShieldCheck, ExternalLink, Package, Tag, Percent } from 'lucide-react';
 import { Spinner } from './Spinner';
 
-export default function ProductDetailModal({ item, isOpen, onClose, isAdmin, onRefresh }: any) {
+interface ProductDetailModalProps {
+  item: any;
+  isOpen: boolean;
+  onClose: () => void;
+  isAdmin: boolean;
+  onRefresh: () => void;
+}
+
+export default function ProductDetailModal({ item, isOpen, onClose, isAdmin, onRefresh }: ProductDetailModalProps) {
   const [loading, setLoading] = useState(false);
   const [editData, setEditData] = useState({
     image_url: '',
     discount_percent: 0,
   });
 
+  // Sync state when the selected item changes
   useEffect(() => {
     if (item) {
       setEditData({
@@ -25,13 +34,13 @@ export default function ProductDetailModal({ item, isOpen, onClose, isAdmin, onR
   const handleUpdate = async () => {
     setLoading(true);
     try {
-      // Update Product Image
+      // 1. Update the parent Product table for the Image URL
       const { error: pErr } = await supabase
         .from('products')
         .update({ image_url: editData.image_url })
         .eq('id', item.product_id);
 
-      // Update Variant Discount
+      // 2. Update the Variant table for the individual Discount
       const { error: vErr } = await supabase
         .from('product_variants')
         .update({ discount_percent: editData.discount_percent })
@@ -42,7 +51,7 @@ export default function ProductDetailModal({ item, isOpen, onClose, isAdmin, onR
       onRefresh();
       onClose();
     } catch (err: any) {
-      alert(err.message);
+      alert("Update Failed: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -53,97 +62,142 @@ export default function ProductDetailModal({ item, isOpen, onClose, isAdmin, onR
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-4xl rounded-[32px] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in duration-300">
+      <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in duration-300">
         
-        {/* Left: Product Visual */}
-        <div className="w-full md:w-1/2 bg-slate-50 flex items-center justify-center p-12 border-r border-slate-100 relative">
-          <button onClick={onClose} className="absolute top-6 left-6 p-2 bg-white rounded-full shadow-md md:hidden"><X/></button>
+        {/* LEFT SIDE: PRODUCT IMAGE */}
+        <div className="w-full md:w-1/2 bg-slate-50 flex items-center justify-center p-8 border-r border-slate-100 relative">
+          <button 
+            onClick={onClose} 
+            className="absolute top-4 left-4 p-2 bg-white rounded-full shadow-md md:hidden active:scale-95 transition-all"
+          >
+            <X size={20} />
+          </button>
+          
           {editData.image_url ? (
-            <img src={editData.image_url} className="w-full h-auto object-contain rounded-2xl shadow-lg" alt="Product" />
+            <img 
+              src={editData.image_url} 
+              className="w-full h-auto max-h-[400px] object-contain rounded-xl shadow-sm" 
+              alt="Product View" 
+            />
           ) : (
-            <div className="text-center text-slate-300">
-              <Package size={120} strokeWidth={1} />
-              <p className="text-xs font-bold uppercase mt-4 tracking-widest">No Image Provided</p>
+            <div className="flex flex-col items-center text-slate-300">
+              <Package size={100} strokeWidth={1} />
+              <p className="text-[10px] font-bold uppercase mt-4 tracking-[0.2em]">No Image Assigned</p>
             </div>
           )}
         </div>
 
-        {/* Right: Info & Admin Panel */}
-        <div className="w-full md:w-1/2 p-10 flex flex-col">
+        {/* RIGHT SIDE: INFORMATION & ADMIN TOOLS */}
+        <div className="w-full md:w-1/2 p-8 flex flex-col h-full overflow-y-auto">
           <div className="flex justify-between items-start mb-6">
-             <div>
-                <span className="text-blue-600 text-[10px] font-bold uppercase tracking-[0.2em]">{item.products?.brands?.name}</span>
-                <h2 className="text-2xl font-bold text-slate-800 leading-tight uppercase italic">{item.products?.name}</h2>
-                <p className="text-slate-400 text-sm font-medium mt-1">Part No: {item.part_number}</p>
+             <div className="space-y-1">
+                <span className="text-blue-600 text-[10px] font-bold uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded">
+                    {item.products?.brands?.name || 'GENUINE'}
+                </span>
+                {/* REQUIREMENT: Category + Name */}
+                <h2 className="text-xl font-bold text-slate-800 leading-snug">
+                    <span className="text-slate-400">[{item.products?.category}]</span> {item.products?.name}
+                </h2>
+                {/* REQUIREMENT: Change to SKU */}
+                <p className="text-slate-500 text-xs font-mono font-bold uppercase tracking-wider">
+                    SKU: {item.sku}
+                </p>
              </div>
-             <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-all hidden md:block"><X size={24}/></button>
+             <button 
+               onClick={onClose} 
+               className="p-2 hover:bg-slate-100 rounded-full transition-all hidden md:block active:scale-95"
+             >
+               <X size={24} className="text-slate-400" />
+             </button>
           </div>
 
           <div className="flex-1 space-y-8">
-             {/* Price Display */}
-             <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Live Store Price</p>
-                <div className="flex items-baseline gap-3">
-                   <span className="text-3xl font-black text-slate-900 italic">RM {discountedPrice.toFixed(2)}</span>
+             {/* PRICING BLOCK */}
+             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Store Price</p>
+                <div className="flex items-center gap-3">
+                   <span className="text-3xl font-bold text-slate-900 tracking-tighter">RM {discountedPrice.toFixed(2)}</span>
                    {editData.discount_percent > 0 && (
-                     <span className="text-lg text-slate-300 line-through font-medium">RM {originalPrice.toFixed(2)}</span>
+                     <span className="text-sm text-slate-400 line-through font-medium">RM {originalPrice.toFixed(2)}</span>
                    )}
                 </div>
+                {editData.discount_percent > 0 && (
+                    <div className="inline-flex items-center gap-1 mt-2 text-red-600 font-bold text-xs uppercase italic">
+                        <Tag size={12} /> {Math.round(editData.discount_percent)}% OFF applied
+                    </div>
+                )}
              </div>
 
-             {/* Admin Section */}
+             {/* ADMIN EDIT PANEL */}
              {isAdmin && (
-               <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 space-y-4">
+               <div className="bg-blue-50 border border-blue-100 p-6 rounded-2xl space-y-5 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <ShieldCheck size={16} className="text-blue-600" />
-                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Administrator Controls</span>
+                    <ShieldCheck size={18} className="text-blue-600" />
+                    <span className="text-[11px] font-bold text-blue-600 uppercase tracking-widest">Admin Marketplace Sync</span>
                   </div>
 
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">External Image URL (ImgBB)</label>
+                  {/* IMAGE URL INPUT */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block ml-1">ImgBB Image Link</label>
                     <div className="flex gap-2">
                        <input 
-                        className="flex-1 p-2.5 bg-white border border-blue-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 p-2.5 bg-white border border-blue-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
                         value={editData.image_url}
                         onChange={e => setEditData({...editData, image_url: e.target.value})}
-                        placeholder="https://i.ibb.co/..."
+                        placeholder="Paste direct link here..."
                        />
-                       <a href="https://imgbb.com" target="_blank" className="p-2.5 bg-white border border-blue-200 rounded-xl text-blue-600 hover:bg-blue-600 hover:text-white transition-all"><ExternalLink size={16}/></a>
+                       <a 
+                        href="https://imgbb.com" 
+                        target="_blank" 
+                        className="p-2.5 bg-white border border-blue-200 rounded-xl text-blue-600 hover:bg-blue-600 hover:text-white transition-all active:scale-95"
+                       >
+                        <ExternalLink size={16}/>
+                       </a>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Set Discount (%)</label>
-                    <div className="flex items-center gap-4">
-                       <input 
-                        type="number" 
-                        max="100"
-                        className="w-32 p-2.5 bg-white border border-blue-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500"
-                        value={editData.discount_percent}
-                        onChange={e => setEditData({...editData, discount_percent: parseFloat(e.target.value)})}
-                       />
-                       <span className="text-orange-600 font-bold text-xs uppercase italic">Save: RM {(originalPrice - discountedPrice).toFixed(2)}</span>
+                  {/* DISCOUNT INPUT */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block ml-1">Individual Item Discount (%)</label>
+                    <div className="flex items-center gap-3">
+                       <div className="relative flex-1 max-w-[140px]">
+                          <input 
+                            type="number" 
+                            max="100"
+                            className="w-full p-2.5 bg-white border border-blue-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 pr-10 shadow-inner"
+                            value={editData.discount_percent}
+                            onChange={e => setEditData({...editData, discount_percent: parseFloat(e.target.value) || 0})}
+                          />
+                          <div className="absolute right-3 top-2.5 text-blue-300"><Percent size={16}/></div>
+                       </div>
+                       <p className="text-[10px] font-bold text-blue-400 leading-tight">
+                         Discount value: <br/>RM {(originalPrice - discountedPrice).toFixed(2)}
+                       </p>
                     </div>
                   </div>
 
                   <button 
                     onClick={handleUpdate}
                     disabled={loading}
-                    className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex justify-center items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-100"
+                    className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex justify-center items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-200 disabled:opacity-50"
                   >
-                    {loading ? <Spinner size={16}/> : <Save size={16}/>} Sync Product Data
+                    {loading ? <Spinner size={16}/> : <Save size={16}/>} 
+                    {loading ? 'Synchronizing...' : 'Sync Product Detail'}
                   </button>
                </div>
              )}
 
-             <div className="grid grid-cols-2 gap-4">
-                <div className="border border-slate-100 p-4 rounded-2xl">
-                   <p className="text-[9px] font-bold text-slate-400 uppercase">Warehouse Position</p>
-                   <p className="text-sm font-bold text-slate-700">{item.bin_location || 'A1-01'}</p>
+             {/* FOOTER WAREHOUSE INFO */}
+             <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Bin Location</p>
+                   <p className="text-sm font-bold text-slate-700">{item.bin_location || 'Not Set'}</p>
                 </div>
-                <div className="border border-slate-100 p-4 rounded-2xl">
-                   <p className="text-[9px] font-bold text-slate-400 uppercase">Available Stock</p>
-                   <p className="text-sm font-bold text-slate-700">{item.stock_quantity} Units</p>
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Live Stock</p>
+                   <p className={`text-sm font-bold ${item.stock_quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {item.stock_quantity} Units
+                   </p>
                 </div>
              </div>
           </div>
