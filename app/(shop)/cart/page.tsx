@@ -1,128 +1,219 @@
 "use client";
-import React, { useState } from 'react';
-import { useCart } from '@/context/CartContext';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Trash2, CreditCard, ArrowRight, Package, ShieldCheck } from 'lucide-react';
+import { 
+  ShoppingCart, 
+  Filter, 
+  Package, 
+  ChevronRight, 
+  Search, 
+  X, 
+  Star 
+} from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
+import { useCart } from '@/context/CartContext';
+import { clsx } from 'clsx';
 
-export default function CartPage() {
-  const { cartItems, cartCount, fetchCart, user, removeFromCart } = useCart();
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
+export default function ShopHomePage() {
+  const [variants, setVariants] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedCat, setSelectedCat] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const { addToCart } = useCart();
 
-  // Updated to use products_flat prices
-  const total = cartItems.reduce((acc: number, item: any) => 
-    acc + (Number(item.products_flat?.price_online || item.products_flat?.price_myr || 0) * item.quantity), 0);
+  useEffect(() => {
+    fetchStoreData();
+  }, [selectedCat]);
 
-  const handleCheckout = async () => {
-    if (!user) return window.location.href = '/login';
-    if (cartItems.length === 0) return;
-    
-    setIsCheckingOut(true);
+  async function fetchStoreData() {
+    setLoading(true);
     try {
-      const { data: sale, error: sError } = await supabase
-        .from('sales')
-        .insert([{
-          customer_id: user.id,
-          source: 'online',
-          total_amount: total,
-          status: 'pending',
-          payment_status: 'paid',
-          payment_method: 'fpx'
-        }])
-        .select().single();
+      // 1. Fetch Distinct Categories from the Products table
+      const { data: catData } = await supabase.from('products').select('category');
+      if (catData) {
+        const uniqueCats = Array.from(new Set(catData.map(c => c.category))).sort();
+        setCategories(uniqueCats);
+      }
 
-      if (sError) throw sError;
-
-      const saleItems = cartItems.map((item: any) => ({
-        sale_id: sale.id,
-        variant_id: item.variant_id, // This is the ID from products_flat
-        quantity: item.quantity,
-        unit_price: item.products_flat.price_online || item.products_flat.price_myr,
-        subtotal: (item.products_flat.price_online || item.products_flat.price_myr) * item.quantity
-      }));
-
-      await supabase.from('sale_items').insert(saleItems);
-      await supabase.from('cart_items').delete().eq('user_id', user.id);
+      // 2. Fetch Variants joined with parent Products and Brands
+      let query = supabase
+        .from('product_variants')
+        .select(`
+          *,
+          products!inner (
+            name,
+            category,
+            brands (name)
+          )
+        `)
+        .eq('products.is_published', true); // Only show published
       
-      await fetchCart(user.id);
-      alert("Purchase Successful! Order is being processed.");
-      window.location.href = "/profile";
-    } catch (err: any) {
-      alert(err.message);
+      // Filter by Category Text if selected
+      if (selectedCat) {
+        query = query.eq('products.category', selectedCat);
+      }
+
+      const { data: prodData, error } = await query.order('part_number', { ascending: true });
+
+      if (error) throw error;
+      if (prodData) setVariants(prodData);
+      
+    } catch (err) {
+      console.error("Storefront Error:", err);
     } finally {
-      setIsCheckingOut(false);
+      setLoading(false);
     }
-  };
+  }
+
+  // Handle Search Filtering (Client Side for speed)
+  const filteredVariants = variants.filter(v => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      v.part_number?.toLowerCase().includes(searchLower) ||
+      v.sku?.toLowerCase().includes(searchLower) ||
+      v.products?.name?.toLowerCase().includes(searchLower) ||
+      v.products?.brands?.name?.toLowerCase().includes(searchLower)
+    );
+  });
 
   return (
-    <div className="max-w-5xl mx-auto py-10 px-4">
-      <h1 className="text-2xl font-bold text-slate-800 mb-8 flex items-center gap-3 uppercase italic">
-        Shopping Cart <span className="text-slate-400 font-normal">({cartCount})</span>
-      </h1>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        <div className="lg:col-span-2 space-y-4">
-          {cartItems.map((item: any) => (
-            <div key={item.id} className="bg-white p-5 rounded-2xl border border-slate-200 flex gap-6 items-center shadow-sm">
-              <div className="w-24 h-24 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300">
-                 <Package size={32} />
-              </div>
-              
-              <div className="flex-1">
-                <h3 className="font-bold text-slate-800 text-sm uppercase leading-tight">
-                  {item.products_flat?.name}
-                </h3>
-                <p className="text-[10px] text-blue-600 font-bold mt-1 uppercase tracking-widest">SKU: {item.products_flat?.part_number}</p>
-                <div className="flex items-center gap-4 mt-3">
-                   <p className="text-orange-600 font-bold text-lg italic">RM {Number(item.products_flat?.price_online || item.products_flat?.price_myr).toFixed(2)}</p>
-                   <span className="text-[11px] bg-slate-100 px-3 py-1 rounded-full font-bold text-slate-500 uppercase">Qty: {item.quantity}</span>
-                </div>
-              </div>
-
-              <button 
-                onClick={() => removeFromCart(item.id)}
-                className="p-3 text-slate-300 hover:text-red-500 transition-all active:scale-90"
-              >
-                <Trash2 size={20} />
-              </button>
-            </div>
-          ))}
+    <div className="flex gap-8 max-w-7xl mx-auto p-4 md:p-8 animate-in fade-in duration-700">
+      
+      {/* SIDEBAR: Category Filter */}
+      <aside className="w-64 hidden md:block shrink-0">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 sticky top-28 shadow-sm">
+          <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-6 flex items-center gap-2">
+            <Filter size={14} className="text-blue-600" /> Browse Catalog
+          </h3>
           
-          {cartItems.length === 0 && (
-            <div className="text-center py-32 bg-white rounded-3xl border-2 border-dashed border-slate-100 text-slate-300">
-              <Package size={64} className="mx-auto mb-4 opacity-20" />
-              <p className="font-bold uppercase tracking-widest text-xs italic">Your warehouse cart is empty</p>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xl h-fit sticky top-28">
-          <h2 className="font-bold text-slate-800 text-lg mb-6 uppercase tracking-widest italic border-b pb-4">Order Summary</h2>
-          
-          <div className="space-y-4 mb-8">
-            <div className="flex justify-between text-slate-500 font-bold text-xs uppercase tracking-widest">
-              <span>Subtotal</span>
-              <span>RM {total.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-slate-500 font-bold text-xs uppercase tracking-widest">
-              <span>Shipping</span>
-              <span className="text-green-600">FREE</span>
-            </div>
-            <div className="pt-4 border-t flex justify-between items-end">
-               <span className="font-bold text-slate-400 uppercase text-[10px]">Total Payable</span>
-               <span className="text-3xl font-bold text-slate-900 italic">RM {total.toFixed(2)}</span>
-            </div>
+          <div className="relative mb-6">
+             <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+             <input 
+                type="text" 
+                placeholder="Search SKU..." 
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-1 focus:ring-blue-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+             />
           </div>
-          
-          <button 
-            onClick={handleCheckout}
-            disabled={cartItems.length === 0 || isCheckingOut}
-            className="w-full bg-[#2563EB] text-white py-4 rounded-xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-100 disabled:opacity-30 uppercase tracking-widest"
-          >
-            {isCheckingOut ? <Spinner size={20} /> : <CreditCard size={20} />}
-            {isCheckingOut ? 'Processing...' : 'Finalize Purchase'}
-          </button>
+
+          <ul className="space-y-1">
+            <li 
+              onClick={() => setSelectedCat(null)}
+              className={clsx(
+                "px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-tight cursor-pointer transition-all active:scale-95",
+                !selectedCat ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "text-slate-500 hover:bg-slate-50"
+              )}
+            >
+              All Products
+            </li>
+            {categories.map((cat) => (
+              <li 
+                key={cat} 
+                onClick={() => setSelectedCat(cat)}
+                className={clsx(
+                  "px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-tight cursor-pointer transition-all flex justify-between items-center active:scale-95",
+                  selectedCat === cat ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "text-slate-500 hover:bg-slate-50 hover:text-blue-600"
+                )}
+              >
+                {cat}
+                {selectedCat === cat && <ChevronRight size={14}/>}
+              </li>
+            ))}
+          </ul>
         </div>
+      </aside>
+
+      {/* MAIN CONTENT: Product Grid */}
+      <div className="flex-1">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-40 gap-4 text-slate-400">
+            <Spinner size={40} className="text-blue-600" />
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] animate-pulse">Syncing Warehouse...</p>
+          </div>
+        ) : (
+          <>
+            <div className="mb-8 flex justify-between items-center px-2">
+               <div>
+                  <h2 className="text-2xl font-bold text-slate-800 tracking-tight italic uppercase">
+                    {selectedCat ? selectedCat : 'Warehouse Catalog'}
+                  </h2>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                    {filteredVariants.length} items found in live inventory
+                  </p>
+               </div>
+            </div>
+
+            {filteredVariants.length === 0 ? (
+              <div className="bg-white rounded-[40px] p-24 text-center border-2 border-dashed border-slate-100">
+                 <Package size={64} className="mx-auto text-slate-100 mb-6" />
+                 <h3 className="text-lg font-bold text-slate-800 uppercase italic">No matching parts</h3>
+                 <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">Check back soon for restock</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                {filteredVariants.map((v) => {
+                  const isStockOut = (v.stock_quantity || 0) <= 0;
+                  const price = v.price_online && v.price_online > 0 ? v.price_online : v.price_myr;
+
+                  return (
+                    <div key={v.id} className="bg-white rounded-[32px] border border-slate-200 hover:border-blue-500 transition-all duration-300 group flex flex-col h-full overflow-hidden shadow-sm hover:shadow-2xl">
+                      {/* Image Frame */}
+                      <div className="aspect-[4/3] bg-slate-50 flex items-center justify-center relative border-b border-slate-100">
+                        <Package size={60} strokeWidth={1} className="text-slate-200 group-hover:scale-110 transition-transform duration-700" />
+                        
+                        {isStockOut && (
+                           <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex items-center justify-center z-10">
+                              <span className="px-5 py-2 bg-slate-900 text-white font-bold text-[10px] uppercase tracking-[0.2em] rounded-full">Out of Stock</span>
+                           </div>
+                        )}
+
+                        <div className="absolute top-4 left-4 z-20">
+                           <span className="bg-white/95 backdrop-blur px-3 py-1.5 rounded-xl text-[9px] font-bold text-blue-600 border border-slate-100 uppercase tracking-tighter shadow-sm">
+                              {v.products?.brands?.name || 'GENUINE'}
+                           </span>
+                        </div>
+                      </div>
+
+                      {/* Content Section */}
+                      <div className="p-6 flex flex-col flex-1">
+                        <h3 className="text-base font-bold text-slate-800 line-clamp-2 h-12 leading-tight mb-1 uppercase italic tracking-tighter">
+                          {v.part_number}
+                        </h3>
+                        <p className="text-[11px] font-bold text-slate-400 mb-4 uppercase tracking-widest">
+                           {v.products?.name}
+                        </p>
+                        
+                        <div className="mt-auto flex items-end justify-between pt-4 border-t border-slate-50">
+                            <div className="flex flex-col">
+                                <div className="text-blue-600 flex items-baseline gap-0.5">
+                                    <span className="text-xs font-bold italic">RM</span>
+                                    <span className="text-2xl font-bold tracking-tighter italic">
+                                      {Number(price || 0).toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-1 mt-1">
+                                   <Star size={10} className="text-amber-400 fill-amber-400"/>
+                                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic">Ready Stock</span>
+                                </div>
+                            </div>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); addToCart(v.id); }}
+                              disabled={isStockOut}
+                              className="bg-[#2563EB] text-white p-4 rounded-2xl shadow-xl shadow-blue-100 active:scale-90 hover:bg-blue-700 transition-all disabled:opacity-30"
+                            >
+                              <ShoppingCart size={22} strokeWidth={2.5} />
+                            </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
