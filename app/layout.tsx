@@ -3,8 +3,8 @@ import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
 
 export const metadata: Metadata = {
-  title: "MY ERP | Enterprise Management System",
-  description: "High-density hybrid inventory and e-commerce platform",
+  title: "MY ERP | Professional Enterprise System",
+  description: "High-density hybrid management suite",
 };
 
 export default function RootLayout({
@@ -15,31 +15,20 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* 
-          THE DOM SHIELD 
-          Prevents external ghost scripts (like app.js) from crashing your React buttons.
-        */}
+        {/* DOM SHIELD: Bypasses external script crashes like app.js */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                // 1. Silences external errors from app.js
                 window.onerror = function(msg, url) {
                   if (url && url.includes('app.js')) return true;
                   return false;
                 };
-
-                // 2. Mocks missing elements to prevent .onclick crashes
                 const originalGetId = document.getElementById;
                 document.getElementById = function(id) {
                   const el = originalGetId.apply(document, arguments);
                   if (!el && (id === 'vercel-toolkit' || id.includes('vercel') || id === 'feedback')) {
-                    return { 
-                      style: {}, 
-                      setAttribute: () => {}, 
-                      onclick: null,
-                      classList: { add: () => {}, remove: () => {} } 
-                    };
+                    return { style: {}, setAttribute: () => {}, onclick: null, classList: { add: () => {}, remove: () => {} } };
                   }
                   return el;
                 };
@@ -55,7 +44,8 @@ export default function RootLayout({
           padding: 0, 
           backgroundColor: '#F8FAFC',
           WebkitFontSmoothing: 'antialiased',
-          MozOsxFontSmoothing: 'grayscale'
+          MozOsxFontSmoothing: 'grayscale',
+          textRendering: 'optimizeLegibility'
         }}
       >
         <CartProvider>
