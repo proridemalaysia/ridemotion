@@ -2,8 +2,15 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
-  History, ShieldAlert, Search, Filter, 
-  ArrowRight, User, database, Clock, Info 
+  History, 
+  ShieldAlert, 
+  Search, 
+  Filter, 
+  ArrowRight, 
+  User, 
+  Database, // Fixed: Capitalized D
+  Clock, 
+  Info 
 } from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 import { clsx } from 'clsx';
@@ -24,6 +31,10 @@ export default function AdminLogsPage() {
       .from('admin_logs')
       .select(`*, profiles(full_name)`)
       .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error("Error fetching logs:", error);
+    }
     
     if (data) setLogs(data);
     setLoading(false);
@@ -72,7 +83,7 @@ export default function AdminLogsPage() {
             className="p-1.5 border border-slate-200 rounded-md text-xs font-bold bg-slate-50 outline-none"
             onChange={(e) => setFilterModule(e.target.value)}
            >
-              <option>All Modules</option>
+              <option value="All Modules">All Modules</option>
               <option value="products_flat">Inventory</option>
               <option value="sales">Sales</option>
               <option value="profiles">Users</option>
@@ -80,7 +91,7 @@ export default function AdminLogsPage() {
         </div>
       </div>
 
-      {/* Logs Table (Slate-950 Theme) */}
+      {/* Logs Table (Slate-950 Theme Matching Sidebar) */}
       <div className="bg-[#020617] rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-[11px] border-collapse">
@@ -101,12 +112,12 @@ export default function AdminLogsPage() {
               ) : filteredLogs.map(log => (
                 <tr key={log.id} className="hover:bg-white/5 transition-colors group">
                   <td className="px-6 py-4 font-mono text-blue-400 whitespace-nowrap">
-                    {new Date(log.created_at).toLocaleDateString()}
+                    {new Date(log.created_at).toLocaleDateString('en-MY')}
                     <span className="ml-2 opacity-50">{new Date(log.created_at).toLocaleTimeString()}</span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
-                       <span className="text-slate-200 font-bold uppercase">{log.profiles?.full_name || 'System'}</span>
+                       <span className="text-slate-200 font-bold uppercase tracking-tight">{log.profiles?.full_name || 'System'}</span>
                        <span className="text-[9px] text-slate-500 lowercase">{log.user_email}</span>
                     </div>
                   </td>
@@ -122,7 +133,7 @@ export default function AdminLogsPage() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1.5 text-slate-400 font-bold uppercase tracking-widest text-[9px]">
-                       <div className="w-1 h-1 rounded-full bg-slate-600"></div>
+                       <Database size={10} className="text-slate-600" />
                        {log.entity}
                     </div>
                   </td>
@@ -138,10 +149,11 @@ export default function AdminLogsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 bg-blue-900/20 p-4 rounded-xl border border-blue-900/30">
+      {/* Security Info Footer */}
+      <div className="flex items-center gap-3 bg-blue-900/10 p-4 rounded-xl border border-blue-900/20">
          <ShieldAlert className="text-blue-500" size={20}/>
          <p className="text-[10px] text-blue-300 font-bold uppercase tracking-wider leading-relaxed">
-            Data security alert: Automatic triggers are active. Every change to stock levels, pricing, or order status is immutable and recorded in this audit trail.
+            Data integrity monitoring: Automated triggers are capturing all DML operations. Logs are immutable and retained for security auditing.
          </p>
       </div>
     </div>
