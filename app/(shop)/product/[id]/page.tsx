@@ -3,8 +3,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { 
-  ShoppingCart, Star, CheckCircle2, Package, ArrowLeft, 
-  Settings, Save, ImageIcon, ExternalLink, Percent, ShieldCheck, Tag, AlertCircle 
+  ShoppingCart, CheckCircle2, Package, ArrowLeft, 
+  Settings, Save, ExternalLink, ShieldCheck, Tag, Percent 
 } from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 import { useCart } from '@/context/CartContext';
@@ -92,18 +92,18 @@ export default function ProductDetailPage() {
     };
   }, [variants]);
 
-  const currentBundle = bundles[selectedBundle];
-  const finalPrice = currentBundle.price * (1 - (editData.discount_percent / 100));
+  // Pricing Logic scoped correctly for the whole component
+  const currentPrice = bundles[selectedBundle].price;
+  const finalPrice = currentPrice * (1 - (editData.discount_percent / 100));
 
   const handleAddToCart = () => {
-    currentBundle.ids.forEach(id => addToCart(id));
+    bundles[selectedBundle].ids.forEach(variantId => addToCart(variantId));
     alert(`${selectedBundle.toUpperCase()} Set added to cart!`);
   };
 
   const handleUpdate = async () => {
     setSyncing(true);
     try {
-      // 1. Update Image in Products table
       const { error: imgError } = await supabase
         .from('products')
         .update({ image_url: editData.image_url })
@@ -111,7 +111,6 @@ export default function ProductDetailPage() {
 
       if (imgError) throw imgError;
 
-      // 2. Update Discount in Product Variants table
       const { error: discError } = await supabase
         .from('product_variants')
         .update({ discount_percent: editData.discount_percent })
@@ -121,7 +120,7 @@ export default function ProductDetailPage() {
 
       alert("Data synchronized successfully!");
       setIsEditing(false);
-      fetchData(); // Refresh data from server
+      fetchData();
     } catch (err: any) { 
       alert("Save Error: " + err.message); 
     } finally { 
@@ -164,21 +163,21 @@ export default function ProductDetailPage() {
               {product.brands?.name || 'Genuine'}
             </span>
             <h1 className="text-4xl font-bold text-slate-900 mt-4 leading-tight uppercase italic tracking-tighter">
-              <span className="text-slate-300 not-italic mr-3 uppercase font-medium">{product.category}</span>
+              <span className="text-slate-400 mr-3 uppercase font-medium">{product.category}</span>
               {product.name}
             </h1>
-            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-2">Item Code: {variants[0]?.item_code}</p>
+            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-2 font-mono">Item Code: {variants[0]?.item_code}</p>
           </div>
 
           <div className="bg-white rounded-[32px] p-8 border border-slate-200 shadow-sm relative">
              <div className="flex flex-wrap gap-3 mb-8 border-b border-slate-100 pb-6">
                 {bundles.front.available && (
-                  <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>
+                  <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>
                     Front Set (2pcs)
                   </button>
                 )}
                 {bundles.rear.available && (
-                  <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>
+                  <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>
                     Rear Set (2pcs)
                   </button>
                 )}
@@ -189,12 +188,12 @@ export default function ProductDetailPage() {
 
              <div className="flex items-baseline gap-4">
                 <span className="text-5xl font-bold text-slate-900 italic tracking-tighter">RM {finalPrice.toFixed(2)}</span>
-                {editData.discount_percent > 0 && <span className="text-xl text-slate-300 line-through font-bold italic">RM {currentBundle.price.toFixed(2)}</span>}
+                {editData.discount_percent > 0 && <span className="text-xl text-slate-300 line-through font-bold italic">RM {currentPrice.toFixed(2)}</span>}
              </div>
              
              <button 
               onClick={handleAddToCart} 
-              className="w-full bg-[#2563EB] text-white py-5 rounded-2xl font-bold mt-8 flex items-center justify-center gap-3 hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-200 text-lg"
+              className="w-full bg-[#2563EB] text-white py-5 rounded-2xl font-bold mt-8 flex items-center justify-center gap-3 hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-100 text-lg"
              >
                 <ShoppingCart size={24} strokeWidth={2} /> Add {selectedBundle.toUpperCase()} Bundle to Cart
              </button>
@@ -263,7 +262,7 @@ export default function ProductDetailPage() {
           <div className="grid grid-cols-2 gap-4">
              <div className="p-5 bg-slate-50 border border-slate-100 rounded-[24px]">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Stock Location</p>
-                <p className="text-sm font-bold text-slate-700 uppercase italic">{variants[0]?.bin_location || 'A1-SECTION'}</p>
+                <p className="text-sm font-bold text-slate-700 uppercase italic font-mono">{variants[0]?.bin_location || 'A1-SECTION'}</p>
              </div>
              <div className="p-5 bg-slate-50 border border-slate-100 rounded-[24px]">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Availability</p>
