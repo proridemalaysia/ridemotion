@@ -13,13 +13,26 @@
   body {
     color: rgb(var(--foreground-rgb));
     background: rgb(var(--background-rgb));
-    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    /* Using Inter with a slightly larger base and tighter spacing */
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
+    /* Reference Font Size: 14px */
+    font-size: 14px; 
   }
 }
 
+/* Ensure all tables use tabular numbers for perfect alignment */
 table {
   font-variant-numeric: tabular-nums;
+}
+
+/* Professional Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
 }
