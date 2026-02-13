@@ -6,31 +6,25 @@ const CartContext = createContext<any>(null);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cartCount, setCartCount] = useState<number>(0);
-  // FIXED: Explicitly typed as <any[]> to prevent the 'never[]' build error
   const [cartItems, setCartItems] = useState<any[]>([]); 
   const [user, setUser] = useState<any>(null);
 
   const fetchCart = useCallback(async (userId: string) => {
     const { data, error } = await supabase
       .from('cart_items')
-      .select(`*, product_variants (*, products(name))`)
+      .select(`*, products_flat (*)`) // Updated to join products_flat
       .eq('user_id', userId);
     
-    if (error) {
-      console.error("Cart fetch error:", error);
-      return;
-    }
+    if (error) return;
 
     if (data) {
       setCartItems(data);
-      // Explicitly typing the reduce function to satisfy strict build checks
       const count = data.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0);
       setCartCount(count);
     }
   }, []);
 
   useEffect(() => {
-    // 1. Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user);
@@ -38,7 +32,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    // 2. Listen for Auth Changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
@@ -59,28 +52,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    try {
-      const { data: existing } = await supabase
-        .from('cart_items')
-        .select('*')
-        .eq('variant_id', variantId)
-        .eq('user_id', user.id)
-        .single();
+    const { data: existing } = await supabase
+      .from('cart_items')
+      .select('*')
+      .eq('variant_id', variantId)
+      .eq('user_id', user.id)
+      .single();
 
-      if (existing) {
-        await supabase
-          .from('cart_items')
-          .update({ quantity: existing.quantity + 1 })
-          .eq('id', existing.id);
-      } else {
-        await supabase
-          .from('cart_items')
-          .insert([{ user_id: user.id, variant_id: variantId, quantity: 1 }]);
-      }
-      await fetchCart(user.id);
-    } catch (err) {
-      console.error("Add to cart error:", err);
+    if (existing) {
+      await supabase.from('cart_items').update({ quantity: existing.quantity + 1 }).eq('id', existing.id);
+    } else {
+      await supabase.from('cart_items').insert([{ user_id: user.id, variant_id: variantId, quantity: 1 }]);
     }
+    await fetchCart(user.id);
   };
 
   const removeFromCart = async (id: string) => {
@@ -91,14 +75,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <CartContext.Provider value={{ 
-      cartCount, 
-      cartItems, 
-      addToCart, 
-      removeFromCart, 
-      fetchCart, 
-      user 
-    }}>
+    <CartContext.Provider value={{ cartCount, cartItems, addToCart, removeFromCart, fetchCart, user }}>
       {children}
     </CartContext.Provider>
   );
