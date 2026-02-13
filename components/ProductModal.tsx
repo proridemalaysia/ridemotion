@@ -1,16 +1,21 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { X, Save, Package, Plus, FolderPlus, Image as ImageIcon, MapPin } from 'lucide-react';
+import { X, Save, Package, FolderPlus, Info } from 'lucide-react';
 import { Spinner } from './Spinner';
 
-export default function ProductModal({ isOpen, onClose, onSuccess }: any) {
+interface ProductModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModalProps) {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
-  
+
   const [formData, setFormData] = useState({
     item_code: '', sku: '', brand_name: '', model_name: '', category_id: '',
-    image_url: '', bin_location: '',
     position: '', variant_type: '', packing_ratio: 1,
     buy_usd: 0, cost_rm: 0, price_sell: 0, price_online: 0, price_proposal: 0,
     stock_quantity: 0, low_stock_alert: 5,
@@ -28,26 +33,44 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: any) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.category_id) return alert("Please select a category");
     setLoading(true);
+
     try {
-      const { data: product } = await supabase.from('products').insert([{ 
-        name: `${formData.model_name} ${formData.item_code}`, 
+      // 1. Insert Product
+      const { data: product, error: pError } = await supabase.from('products').insert([{ 
+        name: `${formData.model_name} - ${formData.variant_type}`,
+        item_code: formData.item_code,
+        model_name: formData.model_name,
+        brand_name: formData.brand_name,
+        category_id: formData.category_id,
         slug: `${formData.sku.toLowerCase()}-${Date.now()}`,
-        item_code: formData.item_code, model_name: formData.model_name,
-        brand_name: formData.brand_name, category_id: formData.category_id,
-        image_url: formData.image_url, is_published: true 
+        is_published: true 
       }]).select().single();
 
-      await supabase.from('product_variants').insert([{
-        product_id: product.id, sku: formData.sku,
-        bin_location: formData.bin_location, // Added this
-        position: formData.position, variant_type: formData.variant_type,
-        packing_ratio: formData.packing_ratio, cost_price: formData.cost_rm,
-        price_sell: formData.price_sell, price_online: formData.price_online,
-        stock_quantity: formData.stock_quantity, low_stock_alert: formData.low_stock_alert,
-        length_cm: formData.length_cm, width_cm: formData.width_cm, height_cm: formData.height_cm,
+      if (pError) throw pError;
+
+      // 2. Insert Variant
+      const { error: vError } = await supabase.from('product_variants').insert([{
+        product_id: product.id,
+        sku: formData.sku,
+        position: formData.position,
+        variant_type: formData.variant_type,
+        packing_ratio: formData.packing_ratio,
+        buy_usd: formData.buy_usd,
+        cost_price: formData.cost_rm,
+        price_sell: formData.price_sell,
+        price_online: formData.price_online,
+        price_proposal: formData.price_proposal,
+        stock_quantity: formData.stock_quantity,
+        low_stock_alert: formData.low_stock_alert,
+        items_per_carton: formData.items_per_carton,
+        length_cm: formData.length_cm,
+        width_cm: formData.width_cm,
+        height_cm: formData.height_cm,
       }]);
 
+      if (vError) throw vError;
       onSuccess();
       onClose();
     } catch (err: any) { alert(err.message); }
@@ -56,56 +79,151 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: any) {
 
   if (!isOpen) return null;
 
-  const inputClass = "w-full px-3 py-2 border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white";
-  const labelClass = "block text-[10px] font-bold text-gray-500 uppercase mb-1";
+  const sectionTitle = "text-[13px] font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2";
+  const labelClass = "block text-[11px] font-semibold text-slate-500 mb-1";
+  const inputClass = "w-full p-2 border border-slate-200 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500 bg-white transition-all";
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in duration-200">
-        <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
-          <h2 className="font-black text-slate-800 italic uppercase">Create New Part</h2>
-          <button onClick={onClose}><X size={24}/></button>
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-3xl max-h-[95vh] rounded-lg shadow-2xl overflow-hidden flex flex-col animate-in zoom-in duration-200">
+        
+        <div className="p-4 border-b flex justify-between items-center bg-slate-50">
+          <h2 className="font-bold text-slate-700">Add New Inventory Item</h2>
+          <button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full active:scale-90 transition-all"><X size={20}/></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-8 space-y-8">
-          <section className="grid grid-cols-6 gap-4">
-             <div className="col-span-2">
-                <label className={labelClass}>Part No / SKU</label>
-                <input required className={inputClass} onChange={e => setFormData({...formData, sku: e.target.value})} />
-             </div>
-             <div className="col-span-2">
-                <label className={labelClass}>Bin Location (Shelf)</label>
-                <div className="relative">
-                   <MapPin className="absolute left-2 top-2.5 text-slate-300" size={14}/>
-                   <input className={`${inputClass} pl-8`} placeholder="e.g. A1-05" onChange={e => setFormData({...formData, bin_location: e.target.value})} />
-                </div>
-             </div>
-             <div className="col-span-2">
-                <label className={labelClass}>Stock Quantity</label>
-                <input type="number" className={inputClass} onChange={e => setFormData({...formData, stock_quantity: parseInt(e.target.value)})} />
-             </div>
-             <div className="col-span-3">
-                <label className={labelClass}>Vehicle Model</label>
-                <input required className={inputClass} onChange={e => setFormData({...formData, model_name: e.target.value})} />
-             </div>
-             <div className="col-span-3">
-                <label className={labelClass}>Image URL</label>
-                <input className={inputClass} placeholder="https://..." onChange={e => setFormData({...formData, image_url: e.target.value})} />
-             </div>
+        <form onSubmit={handleSubmit} className="p-8 overflow-y-auto space-y-8 scrollbar-hide">
+          
+          {/* 1. Identity */}
+          <section>
+            <h3 className={sectionTitle}>1. Identity (From PDF)</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className={labelClass}>Item Code *</label>
+                <input required className={inputClass} placeholder="e.g. SAFST" onChange={e => setFormData({...formData, item_code: e.target.value})} />
+              </div>
+              <div>
+                <label className={labelClass}>Part No / SKU *</label>
+                <input required className={inputClass} placeholder="e.g. 341144" onChange={e => setFormData({...formData, sku: e.target.value})} />
+              </div>
+              <div>
+                <label className={labelClass}>Brand *</label>
+                <input required className={inputClass} placeholder="Type or select..." onChange={e => setFormData({...formData, brand_name: e.target.value})} />
+              </div>
+              <div className="col-span-2">
+                <label className={labelClass}>Model Name *</label>
+                <input required className={inputClass} placeholder="e.g. SAGA/ISWARA" onChange={e => setFormData({...formData, model_name: e.target.value})} />
+              </div>
+              <div>
+                <label className={labelClass}>Category *</label>
+                <select required className={inputClass} onChange={e => setFormData({...formData, category_id: e.target.value})}>
+                  <option value="">Select Category</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+            </div>
           </section>
 
-          <section className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
-             <div className="grid grid-cols-3 gap-4">
-                <div><label className={labelClass}>Cost (RM)</label><input type="number" step="0.01" className={inputClass} onChange={e => setFormData({...formData, cost_rm: parseFloat(e.target.value)})} /></div>
-                <div><label className={labelClass}>Retail (RM)</label><input type="number" step="0.01" className={inputClass} onChange={e => setFormData({...formData, price_sell: parseFloat(e.target.value)})} /></div>
-                <div><label className={labelClass}>Online (RM)</label><input type="number" step="0.01" className={inputClass} onChange={e => setFormData({...formData, price_online: parseFloat(e.target.value)})} /></div>
-             </div>
+          {/* 2. Variation & Position */}
+          <section>
+            <h3 className={sectionTitle}>2. Variation & Position</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className={labelClass}>Position</label>
+                <input className={inputClass} placeholder="e.g. FRONT LH" onChange={e => setFormData({...formData, position: e.target.value})} />
+              </div>
+              <div>
+                <label className={labelClass}>Var (Type)</label>
+                <input className={inputClass} placeholder="e.g. STD, HDUTY, PERF" onChange={e => setFormData({...formData, variant_type: e.target.value})} />
+              </div>
+              <div>
+                <label className={labelClass}>Packing Ratio (Important!)</label>
+                <input type="number" className={inputClass} value={formData.packing_ratio} onChange={e => setFormData({...formData, packing_ratio: parseInt(e.target.value)})} />
+                <p className="text-[10px] text-slate-400 mt-1">Enter 6 for Oil Box, 1 for Shocks.</p>
+              </div>
+            </div>
           </section>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <button type="button" onClick={onClose} className="px-6 py-2 font-bold text-gray-400">Cancel</button>
-            <button type="submit" disabled={loading} className="px-12 py-3 bg-slate-900 text-white font-black rounded-xl flex items-center gap-2">
-              {loading ? <Spinner size={18}/> : <Save size={18}/>} SAVE PRODUCT
+          {/* 3. Pricing Structure */}
+          <section>
+            <h3 className={sectionTitle}>3. Pricing Structure</h3>
+            <div className="bg-slate-50 p-4 rounded-lg grid grid-cols-5 gap-4">
+               <div className="col-span-2 grid grid-cols-2 gap-2 border-r border-slate-200 pr-4">
+                  <p className="col-span-2 text-[10px] font-bold text-slate-400 uppercase mb-1">Cost (Reference)</p>
+                  <div>
+                    <label className={labelClass}>BUY (USD)</label>
+                    <input type="number" step="0.01" className={inputClass} onChange={e => setFormData({...formData, buy_usd: parseFloat(e.target.value)})} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>COST (RM)</label>
+                    <input type="number" step="0.01" className={inputClass} onChange={e => setFormData({...formData, cost_rm: parseFloat(e.target.value)})} />
+                  </div>
+               </div>
+               <div className="col-span-3 grid grid-cols-3 gap-2">
+                  <p className="col-span-3 text-[10px] font-bold text-slate-400 uppercase mb-1">Selling Prices (RM)</p>
+                  <div>
+                    <label className={labelClass}>SELL</label>
+                    <input type="number" step="0.01" className={inputClass} onChange={e => setFormData({...formData, price_sell: parseFloat(e.target.value)})} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>ONLINE</label>
+                    <input type="number" step="0.01" className={inputClass} onChange={e => setFormData({...formData, price_online: parseFloat(e.target.value)})} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>PROPOSAL</label>
+                    <input type="number" step="0.01" className={inputClass} onChange={e => setFormData({...formData, price_proposal: parseFloat(e.target.value)})} />
+                  </div>
+               </div>
+            </div>
+          </section>
+
+          {/* 4. Initial Stock */}
+          <section>
+            <h3 className={sectionTitle}>4. Initial Stock</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Current Stock (Base Units)</label>
+                <input type="number" className={inputClass} value={formData.stock_quantity} onChange={e => setFormData({...formData, stock_quantity: parseInt(e.target.value)})} />
+              </div>
+              <div>
+                <label className={labelClass}>Low Stock Alert</label>
+                <input type="number" className={inputClass} value={formData.low_stock_alert} onChange={e => setFormData({...formData, low_stock_alert: parseInt(e.target.value)})} />
+              </div>
+            </div>
+          </section>
+
+          {/* 5. Packaging & CBM Analysis */}
+          <section className="bg-blue-50/50 border border-blue-100 p-4 rounded-lg">
+            <h3 className="text-[13px] font-bold text-blue-700 mb-4 flex items-center gap-2">5. Packaging & CBM Analysis (Optional)</h3>
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <label className={labelClass}>Items per Master Carton</label>
+                <input type="number" className={inputClass} value={formData.items_per_carton} onChange={e => setFormData({...formData, items_per_carton: parseInt(e.target.value)})} />
+                <p className="text-[10px] text-blue-400 mt-1">e.g. 10 Shocks / Ctn</p>
+              </div>
+              <div>
+                <label className={labelClass}>Length (cm)</label>
+                <input type="number" step="0.1" className={inputClass} onChange={e => setFormData({...formData, length_cm: parseFloat(e.target.value)})} />
+              </div>
+              <div>
+                <label className={labelClass}>Width (cm)</label>
+                <input type="number" step="0.1" className={inputClass} onChange={e => setFormData({...formData, width_cm: parseFloat(e.target.value)})} />
+              </div>
+              <div>
+                <label className={labelClass}>Height (cm)</label>
+                <input type="number" step="0.1" className={inputClass} onChange={e => setFormData({...formData, height_cm: parseFloat(e.target.value)})} />
+              </div>
+            </div>
+          </section>
+
+          <div className="pt-6 border-t flex justify-end">
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-[#2563EB] text-white py-3 rounded-md font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all active:scale-[0.98] shadow-lg shadow-blue-100"
+            >
+              {loading ? <Spinner size={18} /> : <Save size={18} />}
+              {loading ? 'Saving Product...' : 'Save Item'}
             </button>
           </div>
         </form>
