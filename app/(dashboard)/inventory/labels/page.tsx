@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Printer, Search, ArrowLeft, Tag } from 'lucide-react';
+import { Printer, Search, ArrowLeft, Tag, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { Spinner } from '@/components/Spinner';
 // @ts-ignore
@@ -18,74 +18,69 @@ export default function BarcodeLabelsPage() {
 
   async function fetchVariants() {
     setLoading(true);
-    const { data } = await supabase
-      .from('product_variants')
-      .select(`*, products (name)`);
+    const { data } = await supabase.from('product_variants').select(`*, products(name)`);
     if (data) setItems(data);
     setLoading(false);
   }
 
-  const filteredItems = items.filter(i => {
-    const searchLower = searchTerm.toLowerCase();
-    return i.sku?.toLowerCase().includes(searchLower) || i.products?.name?.toLowerCase().includes(searchLower);
-  });
+  const filtered = items.filter(i => 
+    i.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    i.products?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="space-y-6">
-      {/* Header - Hidden on Print */}
+    <div className="p-8 space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center print:hidden">
         <div className="flex items-center gap-4">
-          <Link href="/inventory" className="p-2 hover:bg-white rounded border border-gray-200 transition-colors">
+          <Link href="/inventory" className="p-2 hover:bg-white rounded border border-slate-200 transition-all active:scale-95">
             <ArrowLeft size={18} className="text-slate-500" />
           </Link>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800">Label Printing</h2>
-            <p className="text-slate-500 text-sm">Generate SKU barcodes for warehouse bins</p>
-          </div>
+          <h2 className="text-2xl font-bold text-slate-800 uppercase italic">Label Station</h2>
         </div>
 
         <div className="flex gap-3">
            <div className="relative w-64">
-              <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+              <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
               <input 
                 type="text" 
-                placeholder="Filter by SKU or Name..." 
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Filter for Printing..." 
+                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-md text-[13px] outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={e => setSearchTerm(e.target.value)}
               />
            </div>
            <button 
              onClick={() => window.print()}
-             className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-blue-700 shadow-sm flex items-center gap-2"
+             className="bg-[#2563EB] text-white px-5 py-2 rounded-md text-xs font-bold hover:bg-blue-700 transition-all flex items-center gap-2 shadow-lg shadow-blue-200"
            >
-             <Printer size={16} /> Print All
+             <Printer size={16} strokeWidth={2.5} /> PRINT QUEUE
            </button>
         </div>
       </div>
 
-      {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:grid-cols-3 print:gap-2">
         {loading ? (
-          <div className="col-span-full py-20 text-center text-gray-400"><Spinner size={32} className="mx-auto" /></div>
-        ) : filteredItems.map((item) => (
-          <div key={item.id} className="bg-white border border-gray-200 p-4 rounded flex flex-col items-center justify-center space-y-3 print:border-gray-300 print:rounded-none">
-            <p className="text-[11px] font-semibold text-slate-800 text-center line-clamp-1 uppercase">
+          <div className="col-span-full py-20 text-center"><Spinner /></div>
+        ) : filtered.map((item) => (
+          <div key={item.id} className="bg-white border-2 border-slate-100 p-5 rounded-xl flex flex-col items-center justify-center space-y-3 print:border-slate-400 print:rounded-none">
+            <p className="text-[10px] font-bold text-slate-800 text-center line-clamp-1 uppercase tracking-tighter w-full border-b border-slate-50 pb-2">
                {item.products?.name || "Spare Part"}
             </p>
             
-            <div className="scale-90">
-               <Barcode value={item.sku || "000"} width={1.2} height={40} fontSize={10} />
+            <div className="py-2 scale-90">
+               <Barcode value={item.sku || "000"} width={1.3} height={40} fontSize={10} fontOptions="bold" />
             </div>
 
-            <div className="w-full flex justify-between items-center pt-2 border-t border-gray-100">
-               <div className="text-left text-[10px]">
-                  <span className="text-gray-400 block uppercase">Bin</span>
-                  <span className="font-bold text-blue-600">{item.bin_location || '---'}</span>
+            <div className="w-full flex justify-between items-center pt-2">
+               <div className="text-left">
+                  <span className="text-[8px] font-bold text-slate-300 block uppercase tracking-widest">Bin</span>
+                  <div className="flex items-center gap-1 text-blue-600 font-bold text-sm italic">
+                    <MapPin size={10} /> {item.bin_location || 'SEC-X'}
+                  </div>
                </div>
-               <div className="text-right text-[10px]">
-                  <span className="text-gray-400 block uppercase">Price</span>
-                  <span className="font-bold text-slate-900">RM {item.price_sell?.toFixed(2)}</span>
+               <div className="text-right">
+                  <span className="text-[8px] font-bold text-slate-300 block uppercase tracking-widest">Price</span>
+                  <span className="font-bold text-slate-900 text-sm">RM {Number(item.price_sell).toFixed(2)}</span>
                </div>
             </div>
           </div>
