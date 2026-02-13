@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { X, Save, Package, FolderPlus, Info } from 'lucide-react';
+import { X, Save, Plus, FolderPlus, Loader2 } from 'lucide-react';
 import { Spinner } from './Spinner';
 
 interface ProductModalProps {
@@ -13,6 +13,7 @@ interface ProductModalProps {
 export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModalProps) {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
 
   const [formData, setFormData] = useState({
     item_code: '', sku: '', brand_name: '', model_name: '', category_id: '',
@@ -30,6 +31,32 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModa
     const { data } = await supabase.from('categories').select('*').order('name');
     if (data) setCategories(data);
   }
+
+  const handleQuickAddCategory = async () => {
+    const name = prompt("Enter new category name (e.g., Engine Parts):");
+    if (!name) return;
+
+    setIsAddingCategory(true);
+    const slug = name.toLowerCase().replace(/ /g, '-');
+    
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .insert([{ name, slug }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      // Refresh list and auto-select the new one
+      await fetchCategories();
+      setFormData(prev => ({ ...prev, category_id: data.id }));
+    } catch (err: any) {
+      alert("Error adding category: " + err.message);
+    } finally {
+      setIsAddingCategory(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +116,9 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModa
         
         <div className="p-4 border-b flex justify-between items-center bg-slate-50">
           <h2 className="font-bold text-slate-700">Add New Inventory Item</h2>
-          <button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full active:scale-90 transition-all"><X size={20}/></button>
+          <button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full active:scale-90 transition-all">
+            <X size={20}/>
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 overflow-y-auto space-y-8 scrollbar-hide">
@@ -114,12 +143,30 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModa
                 <label className={labelClass}>Model Name *</label>
                 <input required className={inputClass} placeholder="e.g. SAGA/ISWARA" onChange={e => setFormData({...formData, model_name: e.target.value})} />
               </div>
+              
+              {/* CATEGORY SELECT WITH QUICK ADD */}
               <div>
                 <label className={labelClass}>Category *</label>
-                <select required className={inputClass} onChange={e => setFormData({...formData, category_id: e.target.value})}>
-                  <option value="">Select Category</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                <div className="flex gap-2">
+                    <select 
+                        required 
+                        className={`${inputClass} flex-1`}
+                        value={formData.category_id}
+                        onChange={e => setFormData({...formData, category_id: e.target.value})}
+                    >
+                        <option value="">Select...</option>
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <button 
+                        type="button"
+                        onClick={handleQuickAddCategory}
+                        disabled={isAddingCategory}
+                        className="bg-slate-100 p-2 rounded border border-slate-200 text-slate-600 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95 flex items-center justify-center shrink-0"
+                        title="Add New Category"
+                    >
+                        {isAddingCategory ? <Loader2 size={16} className="animate-spin" /> : <FolderPlus size={16} />}
+                    </button>
+                </div>
               </div>
             </div>
           </section>
@@ -139,7 +186,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModa
               <div>
                 <label className={labelClass}>Packing Ratio (Important!)</label>
                 <input type="number" className={inputClass} value={formData.packing_ratio} onChange={e => setFormData({...formData, packing_ratio: parseInt(e.target.value)})} />
-                <p className="text-[10px] text-slate-400 mt-1">Enter 6 for Oil Box, 1 for Shocks.</p>
+                <p className="text-[10px] text-slate-400 mt-1 font-medium">Enter 6 for Oil Box, 1 for Shocks.</p>
               </div>
             </div>
           </section>
@@ -149,7 +196,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModa
             <h3 className={sectionTitle}>3. Pricing Structure</h3>
             <div className="bg-slate-50 p-4 rounded-lg grid grid-cols-5 gap-4">
                <div className="col-span-2 grid grid-cols-2 gap-2 border-r border-slate-200 pr-4">
-                  <p className="col-span-2 text-[10px] font-bold text-slate-400 uppercase mb-1">Cost (Reference)</p>
+                  <p className="col-span-2 text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-wider">Cost (Reference)</p>
                   <div>
                     <label className={labelClass}>BUY (USD)</label>
                     <input type="number" step="0.01" className={inputClass} onChange={e => setFormData({...formData, buy_usd: parseFloat(e.target.value)})} />
@@ -160,7 +207,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModa
                   </div>
                </div>
                <div className="col-span-3 grid grid-cols-3 gap-2">
-                  <p className="col-span-3 text-[10px] font-bold text-slate-400 uppercase mb-1">Selling Prices (RM)</p>
+                  <p className="col-span-3 text-[10px] font-bold text-slate-400 uppercase mb-1 tracking-wider">Selling Prices (RM)</p>
                   <div>
                     <label className={labelClass}>SELL</label>
                     <input type="number" step="0.01" className={inputClass} onChange={e => setFormData({...formData, price_sell: parseFloat(e.target.value)})} />
@@ -194,12 +241,14 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModa
 
           {/* 5. Packaging & CBM Analysis */}
           <section className="bg-blue-50/50 border border-blue-100 p-4 rounded-lg">
-            <h3 className="text-[13px] font-bold text-blue-700 mb-4 flex items-center gap-2">5. Packaging & CBM Analysis (Optional)</h3>
+            <h3 className="text-[13px] font-bold text-blue-700 mb-4 flex items-center gap-2">
+              5. Packaging & CBM Analysis (Optional)
+            </h3>
             <div className="grid grid-cols-4 gap-3">
               <div>
                 <label className={labelClass}>Items per Master Carton</label>
                 <input type="number" className={inputClass} value={formData.items_per_carton} onChange={e => setFormData({...formData, items_per_carton: parseInt(e.target.value)})} />
-                <p className="text-[10px] text-blue-400 mt-1">e.g. 10 Shocks / Ctn</p>
+                <p className="text-[10px] text-blue-400 mt-1 font-medium italic">e.g. 10 Shocks / Ctn</p>
               </div>
               <div>
                 <label className={labelClass}>Length (cm)</label>
@@ -223,7 +272,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess }: ProductModa
               className="w-full bg-[#2563EB] text-white py-3 rounded-md font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all active:scale-[0.98] shadow-lg shadow-blue-100"
             >
               {loading ? <Spinner size={18} /> : <Save size={18} />}
-              {loading ? 'Saving Product...' : 'Save Item'}
+              {loading ? 'SAVING PRODUCT...' : 'SAVE ITEM'}
             </button>
           </div>
         </form>
