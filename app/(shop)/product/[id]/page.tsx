@@ -6,7 +6,7 @@ import {
   ShoppingCart, CheckCircle2, Package, ArrowLeft, 
   Settings, Save, ExternalLink, ShieldCheck, Tag, 
   Plus, Trash2, ChevronLeft, ChevronRight, Star,
-  AlignLeft, ListChecks
+  AlignLeft, ListChecks, Percent
 } from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 import { useCart } from '@/context/CartContext';
@@ -25,8 +25,9 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<any>(null);
   const [variants, setVariants] = useState<any[]>([]);
   
-  // UI States
+  // SELECTION STATES
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [selectedType, setSelectedType] = useState<string>(""); 
   const [selectedBundle, setSelectedBundle] = useState<'front' | 'rear' | 'full'>('full');
   const [activeTab, setActiveTab] = useState<'desc' | 'specs'>('desc');
   
@@ -56,7 +57,12 @@ export default function ProductDetailPage() {
         setEditSpecs(prodData.specifications || "");
         setEditDiscount(varData?.[0]?.discount_percent || 0);
       }
-      if (varData) setVariants(varData);
+      
+      if (varData && varData.length > 0) {
+        setVariants(varData);
+        const types = Array.from(new Set(varData.map(v => v.type))).filter(Boolean);
+        if (types.length > 0) setSelectedType(types[0] as string);
+      }
       
     } catch (err) { console.error(err); } 
     finally { setLoading(false); }
@@ -68,9 +74,10 @@ export default function ProductDetailPage() {
 
   // --- BUNDLE CALCULATION ---
   const bundles = useMemo(() => {
+    const typeSpecificVariants = variants.filter(v => v.type === selectedType);
     const getPrice = (v: any) => Number(v?.price_online || v?.price_myr || 0);
-    const front = variants.filter(v => v.position?.toUpperCase().includes('FRONT'));
-    const rear = variants.filter(v => v.position?.toUpperCase().includes('REAR'));
+    const front = typeSpecificVariants.filter(v => v.position?.toUpperCase().includes('FRONT'));
+    const rear = typeSpecificVariants.filter(v => v.position?.toUpperCase().includes('REAR'));
 
     const calc = (parts: any[]) => {
       if (parts.length >= 2) return { price: getPrice(parts[0]) + getPrice(parts[1]), data: parts };
@@ -86,30 +93,29 @@ export default function ProductDetailPage() {
       rear: { price: rObj.price, components: rObj.data, available: rObj.price > 0 },
       full: { price: fObj.price + rObj.price, components: [...fObj.data, ...rObj.data], available: (fObj.price + rObj.price) > 0 }
     };
+  }, [variants, selectedType]);
+
+  const availableTypes = useMemo(() => {
+    return Array.from(new Set(variants.map(v => v.type))).filter(Boolean).sort();
   }, [variants]);
 
-  // FIXED: Explicitly defined currentPrice and finalPrice for display
   const currentBundle = bundles[selectedBundle] || { price: 0, components: [] };
   const currentPrice = currentBundle.price;
   const finalPrice = currentPrice * (1 - (editDiscount / 100));
 
-  const handleAddToCart = async () => {
-    if (!isInitialized) return;
-    setSyncing(true);
-    
-    try {
-      for (const variant of currentBundle.components) {
-        await addToCart(variant.id, {
-            ...variant,
-            products_flat: product 
-        });
-      }
-      router.push('/cart');
-    } catch (err) {
-      console.error("Cart process failed", err);
-    } finally {
-      setSyncing(false);
-    }
+  // --- HELPER FUNCTIONS (FIXED) ---
+  const setAsMain = (index: number) => {
+    const newArr = [...editImages];
+    const selected = newArr.splice(index, 1)[0];
+    newArr.unshift(selected);
+    setEditImages(newArr);
+    setActiveImageIndex(0);
+  };
+
+  const removeImage = (index: number) => {
+    const newArr = editImages.filter((_, i) => i !== index);
+    setEditImages(newArr);
+    if (activeImageIndex >= newArr.length) setActiveImageIndex(0);
   };
 
   const addImage = () => {
@@ -126,33 +132,25 @@ export default function ProductDetailPage() {
     setEditImages(newArr);
   };
 
-  const setAsMain = (index: number) => {
-    const newArr = [...editImages];
-    const selected = newArr.splice(index, 1)[0];
-    newArr.unshift(selected);
-    setEditImages(newArr);
-    setActiveImageIndex(0);
-  };
-
-  const removeImage = (index: number) => {
-    setEditImages(editImages.filter((_, i) => i !== index));
-    if (activeImageIndex >= editImages.length - 1) setActiveImageIndex(0);
+  const handleAddToCart = async () => {
+    if (!isInitialized) return;
+    if (currentBundle.components.length === 0) return alert("Please select a valid set.");
+    setSyncing(true);
+    try {
+      for (const variant of currentBundle.components) {
+        await addToCart(variant.id, { ...variant, products_flat: product });
+      }
+      router.push('/cart');
+    } catch (err) { console.error(err); } 
+    finally { setSyncing(false); }
   };
 
   const handleUpdate = async () => {
     setSyncing(true);
     try {
-      await supabase.from('products').update({ 
-        image_urls: editImages,
-        description: editDesc,
-        specifications: editSpecs
-      }).eq('id', id);
-      
-      await supabase.from('product_variants').update({ 
-        discount_percent: editDiscount 
-      }).eq('product_id', id);
-
-      alert("Data synchronized successfully!");
+      await supabase.from('products').update({ image_urls: editImages, description: editDesc, specifications: editSpecs }).eq('id', id);
+      await supabase.from('product_variants').update({ discount_percent: editDiscount }).eq('product_id', id);
+      alert("Sync Complete!");
       setIsEditing(false);
       fetchData();
     } catch (err: any) { alert(err.message); }
@@ -169,7 +167,6 @@ export default function ProductDetailPage() {
       </button>
 
       <div className="flex flex-col lg:flex-row gap-12">
-        
         {/* LEFT: GALLERY AREA */}
         <div className="w-full lg:w-1/2 space-y-6">
           <div className="bg-white rounded-[40px] border border-slate-200 aspect-square flex items-center justify-center overflow-hidden shadow-sm relative group">
@@ -183,16 +180,16 @@ export default function ProductDetailPage() {
 
           <div className="flex gap-4 overflow-x-auto py-2 scrollbar-hide">
              {editImages.map((img, idx) => (
-               <button key={idx} onClick={() => setActiveImageIndex(idx)} className={clsx("w-20 h-20 rounded-2xl border-2 shrink-0 transition-all active:scale-90 overflow-hidden", activeImageIndex === idx ? "border-blue-600" : "border-transparent opacity-60")}>
-                 <img src={img} className="w-full h-full object-cover" />
+               <button key={idx} onClick={() => setActiveImageIndex(idx)} className={clsx("w-20 h-20 rounded-2xl border-2 shrink-0 transition-all active:scale-90 overflow-hidden", activeImageIndex === idx ? "border-blue-600 shadow-md" : "border-transparent opacity-60")}>
+                 <img src={img} className="w-full h-full object-cover" alt="thumb" />
                </button>
              ))}
           </div>
 
           <div className="mt-8 bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
              <div className="flex bg-slate-50 border-b">
-                <button onClick={() => setActiveTab('desc')} className={clsx("px-8 py-4 text-xs font-bold uppercase tracking-widest transition-all", activeTab === 'desc' ? "bg-white text-blue-600 border-r" : "text-slate-400")}>Description</button>
-                <button onClick={() => setActiveTab('specs')} className={clsx("px-8 py-4 text-xs font-bold uppercase tracking-widest transition-all", activeTab === 'specs' ? "bg-white text-blue-600 border-x" : "text-slate-400")}>Specifications</button>
+                <button onClick={() => setActiveTab('desc')} className={clsx("px-8 py-4 text-[10px] font-bold uppercase tracking-widest transition-all", activeTab === 'desc' ? "bg-white text-blue-600 border-r" : "text-slate-400")}>Description</button>
+                <button onClick={() => setActiveTab('specs')} className={clsx("px-8 py-4 text-[10px] font-bold uppercase tracking-widest transition-all", activeTab === 'specs' ? "bg-white text-blue-600 border-x" : "text-slate-400")}>Specifications</button>
              </div>
              <div className="p-8 text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
                 {activeTab === 'desc' ? (product.description || "No description provided.") : (product.specifications || "No technical specs provided.")}
@@ -202,34 +199,50 @@ export default function ProductDetailPage() {
 
         {/* RIGHT: DETAILS AREA */}
         <div className="w-full lg:w-1/2 space-y-8">
-          <div className="space-y-4">
+          <div>
             <span className="text-blue-600 font-bold uppercase tracking-[0.2em] text-[10px] bg-blue-50 px-3 py-1 rounded-full border border-blue-100">{product.brands?.name}</span>
-            <h1 className="text-4xl font-bold text-slate-900 leading-tight uppercase italic tracking-tighter">
-              <span className="mr-3">{product.category}</span>
+            <h1 className="text-4xl font-bold text-slate-900 leading-tight uppercase italic tracking-tighter mt-4">
+              <span className="text-slate-400 mr-3 uppercase font-medium">{product.category}</span>
               {product.name}
             </h1>
-            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest font-mono">Item Code: {variants[0]?.item_code}</p>
+            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest font-mono mt-2">Item Code: {variants[0]?.item_code}</p>
           </div>
 
-          <div className="bg-white rounded-[32px] p-8 border border-slate-200 shadow-sm space-y-8">
-             <div className="flex flex-wrap gap-3">
-                {bundles.front.available && <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Front Set (2pcs)</button>}
-                {bundles.rear.available && <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Rear Set (2pcs)</button>}
-                <button onClick={() => setSelectedBundle('full')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'full' ? "bg-[#020617] text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Full Set (4pcs)</button>
+          <div className="bg-white rounded-[32px] p-8 border border-slate-200 shadow-sm space-y-10">
+             
+             {/* 1. Type Selection */}
+             <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">1. Select Performance Type</p>
+                <div className="flex flex-wrap gap-2">
+                   {availableTypes.map(type => (
+                     <button key={type} onClick={() => setSelectedType(type)} className={clsx("px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95 border", selectedType === type ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50")}>
+                        {type}
+                     </button>
+                   ))}
+                </div>
              </div>
 
-             <div className="flex items-baseline gap-4 pt-4 border-t">
+             {/* 2. Bundle Selection */}
+             <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">2. Select Quantity Set</p>
+                <div className="flex flex-wrap gap-2">
+                    {bundles.front.available && <button onClick={() => setSelectedBundle('front')} className={clsx("px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95 border", selectedBundle === 'front' ? "bg-blue-600 text-white border-blue-600 shadow-lg" : "bg-white text-slate-500 border-slate-200")}>Front Set (2pcs)</button>}
+                    {bundles.rear.available && <button onClick={() => setSelectedBundle('rear')} className={clsx("px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95 border", selectedBundle === 'rear' ? "bg-blue-600 text-white border-blue-600 shadow-lg" : "bg-white text-slate-500 border-slate-200")}>Rear Set (2pcs)</button>}
+                    <button onClick={() => setSelectedBundle('full')} className={clsx("px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95 border", selectedBundle === 'full' ? "bg-blue-600 text-white border-blue-600 shadow-lg" : "bg-white text-slate-500 border-slate-200")}>Full Set (4pcs)</button>
+                </div>
+             </div>
+
+             <div className="flex items-baseline gap-4 pt-6 border-t">
                 <span className="text-5xl font-bold text-slate-900 italic tracking-tighter">RM {finalPrice.toFixed(2)}</span>
                 {editDiscount > 0 && <span className="text-xl text-slate-300 line-through font-bold">RM {currentPrice.toFixed(2)}</span>}
              </div>
              
              <button 
-              onClick={handleAddToCart}
-              disabled={syncing}
+              onClick={handleAddToCart} 
+              disabled={syncing} 
               className="w-full bg-[#2563EB] text-white py-5 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-100 text-lg uppercase tracking-widest"
              >
-                {syncing ? <Spinner size={24} /> : <ShoppingCart size={24} strokeWidth={2} />} 
-                Add To Cart
+                {syncing ? <Spinner size={24} /> : <ShoppingCart size={24} strokeWidth={2} />} Add To Cart
              </button>
           </div>
 
@@ -246,13 +259,13 @@ export default function ProductDetailPage() {
                     <div className="space-y-4">
                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Gallery Sequence Manager</label>
                        <div className="flex gap-2">
-                        <input className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-1 focus:ring-blue-500" value={newImageUrl} onChange={e => setNewImageUrl(e.target.value)} placeholder="Paste ImgBB URL..." />
-                        <button onClick={addImage} className="bg-blue-600 text-white p-3 rounded-xl active:scale-90"><Plus size={18}/></button>
+                        <input className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" value={newImageUrl} onChange={e => setNewImageUrl(e.target.value)} placeholder="Paste ImgBB URL..." />
+                        <button onClick={addImage} className="bg-blue-600 text-white p-3 rounded-xl active:scale-90 transition-all"><Plus size={18}/></button>
                        </div>
                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                           {editImages.map((img, i) => (
                             <div key={i} className={clsx("relative group aspect-square rounded-2xl overflow-hidden border-2", i === 0 ? "border-blue-600 shadow-lg" : "border-slate-100")}>
-                               <img src={img} className="w-full h-full object-cover" />
+                               <img src={img} className="w-full h-full object-cover" alt="grid" />
                                <div className="absolute inset-0 bg-slate-900/70 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-1.5">
                                   <div className="flex gap-1">
                                     <button onClick={() => moveImage(i, 'left')} className="p-1 bg-white rounded text-slate-800 active:scale-90"><ChevronLeft size={12}/></button>
@@ -270,11 +283,11 @@ export default function ProductDetailPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t">
                        <div className="space-y-2">
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><AlignLeft size={12}/> Marketing Description</label>
-                          <textarea rows={4} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-1 focus:ring-blue-500" value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Describe the item..."/>
+                          <textarea rows={4} className="w-full p-3 bg-slate-50 border rounded-xl text-xs font-medium outline-none focus:ring-1 focus:ring-blue-500" value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Marketing text..."/>
                        </div>
                        <div className="space-y-2">
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><ListChecks size={12}/> Technical Specs</label>
-                          <textarea rows={4} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:ring-1 focus:ring-blue-500" value={editSpecs} onChange={e => setEditSpecs(e.target.value)} placeholder="Technical details..."/>
+                          <textarea rows={4} className="w-full p-3 bg-slate-50 border rounded-xl text-xs font-mono outline-none focus:ring-1 focus:ring-blue-500" value={editSpecs} onChange={e => setEditSpecs(e.target.value)} placeholder="OEM, Materials..."/>
                        </div>
                     </div>
 
@@ -283,7 +296,7 @@ export default function ProductDetailPage() {
                        <input type="number" className="w-32 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-1 focus:ring-blue-500" value={editDiscount} onChange={e => setEditDiscount(parseFloat(e.target.value) || 0)} />
                     </div>
 
-                    <button onClick={handleUpdate} disabled={syncing} className="w-full bg-[#020617] text-white py-4 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-slate-200">
+                    <button onClick={handleUpdate} disabled={syncing} className="w-full bg-[#020617] text-white py-4 rounded-xl font-bold text-xs uppercase active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-slate-200 transition-all">
                        {syncing ? <Spinner size={16} /> : <Save size={16} />} Sync Assets & Content
                     </button>
                  </div>
