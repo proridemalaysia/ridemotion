@@ -66,7 +66,52 @@ export default function ProductDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  // --- MEDIA MANAGER LOGIC ---
+  // --- BUNDLE CALCULATION ---
+  const bundles = useMemo(() => {
+    const getPrice = (v: any) => Number(v?.price_online || v?.price_myr || 0);
+    const front = variants.filter(v => v.position?.toUpperCase().includes('FRONT'));
+    const rear = variants.filter(v => v.position?.toUpperCase().includes('REAR'));
+
+    const calc = (parts: any[]) => {
+      if (parts.length >= 2) return getPrice(parts[0]) + getPrice(parts[1]);
+      if (parts.length === 1) return getPrice(parts[0]) * 2;
+      return 0;
+    };
+
+    const fPrice = calc(front);
+    const rPrice = calc(rear);
+
+    return {
+      front: { price: fPrice, ids: front.map(v => v.id), available: fPrice > 0 },
+      rear: { price: rPrice, ids: rear.map(v => v.id), available: rPrice > 0 },
+      full: { price: fPrice + rPrice, ids: variants.map(v => v.id), available: (fPrice + rPrice) > 0 }
+    };
+  }, [variants]);
+
+  const currentPrice = bundles[selectedBundle]?.price || 0;
+  const finalPrice = currentPrice * (1 - (editDiscount / 100));
+
+  const handleAddToCart = async () => {
+    const componentIds = bundles[selectedBundle].ids;
+    if (componentIds.length === 0) return;
+
+    setSyncing(true);
+    
+    // Add all parts in the bundle one by one
+    for (const vId of componentIds) {
+      const result = await addToCart(vId);
+      if (result.error === 'auth_required') {
+        router.push('/login');
+        return;
+      }
+    }
+    
+    setSyncing(false);
+    alert(`${selectedBundle.toUpperCase()} Bundle successfully added to cart!`);
+    router.push('/cart'); // Send them to cart to finalize
+  };
+
+  // Admin Media Helpers
   const addImage = () => {
     if (!newImageUrl) return;
     setEditImages(prev => [...prev, newImageUrl]);
@@ -94,31 +139,6 @@ export default function ProductDetailPage() {
     if (activeImageIndex >= editImages.length - 1) setActiveImageIndex(0);
   };
 
-  // --- BUNDLE CALCULATION ---
-  const bundles = useMemo(() => {
-    const getPrice = (v: any) => Number(v?.price_online || v?.price_myr || 0);
-    const front = variants.filter(v => v.position?.toUpperCase().includes('FRONT'));
-    const rear = variants.filter(v => v.position?.toUpperCase().includes('REAR'));
-
-    const calc = (parts: any[]) => {
-      if (parts.length >= 2) return getPrice(parts[0]) + getPrice(parts[1]);
-      if (parts.length === 1) return getPrice(parts[0]) * 2;
-      return 0;
-    };
-
-    const fPrice = calc(front);
-    const rPrice = calc(rear);
-
-    return {
-      front: { price: fPrice, ids: front.map(v => v.id), available: fPrice > 0 },
-      rear: { price: rPrice, ids: rear.map(v => v.id), available: rPrice > 0 },
-      full: { price: fPrice + rPrice, ids: variants.map(v => v.id), available: (fPrice + rPrice) > 0 }
-    };
-  }, [variants]);
-
-  const currentPrice = bundles[selectedBundle]?.price || 0;
-  const finalPrice = currentPrice * (1 - (editDiscount / 100));
-
   const handleUpdate = async () => {
     setSyncing(true);
     try {
@@ -144,7 +164,7 @@ export default function ProductDetailPage() {
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 animate-in fade-in duration-500 pb-32 font-sans">
-      <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-400 hover:text-blue-600 font-bold text-xs uppercase mb-8 active:scale-95 transition-all">
+      <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-400 hover:text-blue-600 font-bold text-xs uppercase mb-8 active:scale-95 transition-all outline-none">
         <ArrowLeft size={16} /> Back to Catalog
       </button>
 
@@ -162,7 +182,7 @@ export default function ProductDetailPage() {
 
           <div className="flex gap-4 overflow-x-auto py-2 scrollbar-hide">
              {editImages.map((img, idx) => (
-               <button key={idx} onClick={() => setActiveImageIndex(idx)} className={clsx("w-20 h-20 rounded-2xl border-2 shrink-0 transition-all active:scale-90 overflow-hidden", activeImageIndex === idx ? "border-blue-600" : "border-transparent opacity-60")}>
+               <button key={idx} onClick={() => setActiveImageIndex(idx)} className={clsx("w-20 h-20 rounded-2xl border-2 shrink-0 transition-all active:scale-90 overflow-hidden", activeImageIndex === idx ? "border-blue-600 shadow-md" : "border-transparent opacity-60")}>
                  <img src={img} className="w-full h-full object-cover" />
                </button>
              ))}
@@ -170,8 +190,8 @@ export default function ProductDetailPage() {
 
           <div className="mt-8 bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
              <div className="flex bg-slate-50 border-b">
-                <button onClick={() => setActiveTab('desc')} className={clsx("px-8 py-4 text-xs font-bold uppercase tracking-widest", activeTab === 'desc' ? "bg-white text-blue-600 border-r" : "text-slate-400")}>Description</button>
-                <button onClick={() => setActiveTab('specs')} className={clsx("px-8 py-4 text-xs font-bold uppercase tracking-widest", activeTab === 'specs' ? "bg-white text-blue-600 border-x" : "text-slate-400")}>Specifications</button>
+                <button onClick={() => setActiveTab('desc')} className={clsx("px-8 py-4 text-xs font-bold uppercase tracking-widest transition-all", activeTab === 'desc' ? "bg-white text-blue-600 border-r" : "text-slate-400")}>Description</button>
+                <button onClick={() => setActiveTab('specs')} className={clsx("px-8 py-4 text-xs font-bold uppercase tracking-widest transition-all", activeTab === 'specs' ? "bg-white text-blue-600 border-x" : "text-slate-400")}>Specifications</button>
              </div>
              <div className="p-8 text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
                 {activeTab === 'desc' ? (product.description || "No description provided.") : (product.specifications || "No technical specs provided.")}
@@ -184,7 +204,7 @@ export default function ProductDetailPage() {
           <div className="space-y-4">
             <span className="text-blue-600 font-bold uppercase tracking-[0.2em] text-[10px] bg-blue-50 px-3 py-1 rounded-full border border-blue-100">{product.brands?.name}</span>
             <h1 className="text-4xl font-bold text-slate-900 leading-tight uppercase italic tracking-tighter">
-              <span className="mr-3">{product.category}</span>
+              <span className="mr-3 uppercase font-medium">{product.category}</span>
               {product.name}
             </h1>
             <p className="text-slate-400 font-bold text-xs uppercase tracking-widest font-mono">Item Code: {variants[0]?.item_code}</p>
@@ -192,9 +212,9 @@ export default function ProductDetailPage() {
 
           <div className="bg-white rounded-[32px] p-8 border border-slate-200 shadow-sm space-y-8">
              <div className="flex flex-wrap gap-3">
-                {bundles.front.available && <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Front Set (2pcs)</button>}
-                {bundles.rear.available && <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Rear Set (2pcs)</button>}
-                <button onClick={() => setSelectedBundle('full')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'full' ? "bg-slate-900 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Full Set (4pcs)</button>
+                {bundles.front.available && <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Front Set (2pcs)</button>}
+                {bundles.rear.available && <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Rear Set (2pcs)</button>}
+                <button onClick={() => setSelectedBundle('full')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'full' ? "bg-slate-900 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Full Set (4pcs)</button>
              </div>
 
              <div className="flex items-baseline gap-4 pt-4 border-t">
@@ -202,8 +222,13 @@ export default function ProductDetailPage() {
                 {editDiscount > 0 && <span className="text-xl text-slate-300 line-through font-bold">RM {currentPrice.toFixed(2)}</span>}
              </div>
              
-             <button onClick={() => bundles[selectedBundle].ids.forEach(id => addToCart(id))} className="w-full bg-[#2563EB] text-white py-5 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-100 text-lg uppercase tracking-widest">
-                <ShoppingCart size={24} strokeWidth={2} /> Add To Cart
+             <button 
+              onClick={handleAddToCart}
+              disabled={syncing}
+              className="w-full bg-[#2563EB] text-white py-5 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-100 text-lg uppercase tracking-widest"
+             >
+                {syncing ? <Spinner size={24} /> : <ShoppingCart size={24} strokeWidth={2} />} 
+                Add To Cart
              </button>
           </div>
 
@@ -254,10 +279,10 @@ export default function ProductDetailPage() {
 
                     <div className="space-y-2">
                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Individual Item Discount (%)</label>
-                       <input type="number" className="w-32 p-3 bg-slate-50 border rounded-xl text-sm font-bold" value={editDiscount} onChange={e => setEditDiscount(parseFloat(e.target.value) || 0)} />
+                       <input type="number" className="w-32 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold" value={editDiscount} onChange={e => setEditDiscount(parseFloat(e.target.value) || 0)} />
                     </div>
 
-                    <button onClick={handleUpdate} disabled={syncing} className="w-full bg-[#020617] text-white py-4 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2">
+                    <button onClick={handleUpdate} disabled={syncing} className="w-full bg-[#020617] text-white py-4 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2 shadow-lg">
                        {syncing ? <Spinner size={16} /> : <Save size={16} />} Sync Assets & Content
                     </button>
                  </div>
