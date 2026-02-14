@@ -2,10 +2,12 @@
 import React, { useState } from 'react';
 import { 
   User, Star, Package, Clock, ShieldCheck, 
-  MapPin, Truck, ExternalLink, ChevronRight, Save, X, Landmark, Fingerprint
+  MapPin, Truck, ExternalLink, ChevronRight, Save, X, Landmark 
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { supabase } from '@/lib/supabase';
+import { signOutAction } from '@/app/login/actions';
+import { Spinner } from './Spinner'; // Added missing import
 
 interface MemberProfileViewProps {
   initialProfile: any;
@@ -77,6 +79,7 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
         <div className="absolute -right-20 -top-20 w-64 h-64 bg-slate-50 rounded-full blur-3xl opacity-50"></div>
         
+        {/* Profile Image Display */}
         <div className={clsx(
             "w-24 h-24 rounded-3xl flex items-center justify-center text-white shadow-xl relative z-10 overflow-hidden",
             isUserAdmin ? "bg-red-600" : "bg-[#020617]"
@@ -143,7 +146,7 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
                               <td className="px-6 py-4 text-center">
                                 <span className={clsx(
                                   "text-[10px] font-bold uppercase px-3 py-1 rounded-full border",
-                                  order.status === 'completed' ? "bg-green-50 text-green-700 border-green-200" : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm"
+                                  order.status === 'completed' ? "bg-green-50 text-green-700 border-green-200 shadow-sm shadow-green-50" : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm shadow-amber-50"
                                 )}>
                                    {order.status}
                                 </span>
@@ -154,6 +157,22 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
                                </button>
                              </td>
                            </tr>
+                           {/* Tracking Integration */}
+                           {order.tracking_number && (
+                             <tr className="bg-blue-50/40 border-b border-slate-100">
+                               <td colSpan={5} className="px-6 py-3">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                     <div className="flex items-center gap-3 font-bold text-blue-700 uppercase tracking-tighter">
+                                        <Truck size={14} className="animate-bounce" />
+                                        <span>Shipped via {order.courier_name} • <span className="underline decoration-2">{order.tracking_number}</span></span>
+                                     </div>
+                                     <button className="flex items-center gap-1 font-bold text-blue-600 hover:underline uppercase tracking-widest">
+                                        Track Parcel <ExternalLink size={12} />
+                                     </button>
+                                  </div>
+                               </td>
+                             </tr>
+                           )}
                         </React.Fragment>
                      ))}
                   </tbody>
@@ -208,7 +227,7 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
           <form onSubmit={handleUpdateProfile} className="bg-white w-full max-w-xl rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in duration-300 max-h-[90vh] flex flex-col">
              <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
                 <h3 className="font-bold text-slate-800 uppercase italic text-sm">Update Information</h3>
-                <button type="button" onClick={() => setIsEditing(false)} className="p-1 hover:bg-slate-200 rounded-full transition-all active:scale-95"><X size={20}/></button>
+                <button type="button" onClick={() => setIsEditing(false)} className="p-1 hover:bg-slate-200 rounded-full transition-all active:scale-95 text-slate-400"><X size={20}/></button>
              </div>
              
              <div className="p-8 space-y-5 overflow-y-auto scrollbar-hide">
