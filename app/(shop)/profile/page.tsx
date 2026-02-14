@@ -16,29 +16,29 @@ export default async function ProfilePage() {
     }
   );
 
-  // 1. Get the current user session on the server
+  // 1. Authenticate user on server
   const { data: { user } } = await supabase.auth.getUser();
 
-  // 2. If no user is logged in, send them to login page immediately
+  // 2. Redirect to login if not authenticated
   if (!user) {
     redirect('/login');
   }
 
-  // 3. Fetch real profile data (Nurizan, Karim, or Sofia)
+  // 3. Fetch full profile including TIN and BRN
   const { data: profile } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', user.id)
     .single();
 
-  // 4. Fetch real order history
+  // 4. Fetch order history
   const { data: orders } = await supabase
     .from('sales')
     .select('*')
     .eq('customer_id', user.id)
     .order('created_at', { ascending: false });
 
-  // 5. Pass data to the UI Component
+  // 5. Render the client UI component
   return (
     <MemberProfileView 
       initialProfile={profile} 
