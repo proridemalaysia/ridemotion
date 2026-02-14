@@ -12,7 +12,7 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Editable Form State
+  // Editable Form State - Matches Database Columns
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
     phone: profile?.phone || '',
@@ -23,21 +23,36 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(formData)
-      .eq('id', profile.id)
-      .select()
-      .single();
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: formData.full_name,
+          phone: formData.phone,
+          address: formData.address,
+          avatar_url: formData.avatar_url,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', profile.id)
+        .select()
+        .single();
 
-    if (!error) {
-      setProfile(data);
-      setIsEditing(false);
-    } else {
-      alert(error.message);
+      if (error) throw error;
+
+      if (data) {
+        setProfile(data);
+        setIsEditing(false);
+        alert("Profile updated successfully!");
+      }
+    } catch (err: any) {
+      alert("Error updating profile: " + err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
+  const isUserAdmin = profile?.role === 'admin';
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 px-4 mt-6 font-sans">
@@ -46,8 +61,11 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
         <div className="absolute -right-20 -top-20 w-64 h-64 bg-slate-50 rounded-full blur-3xl opacity-50"></div>
         
-        {/* Profile Image Support */}
-        <div className="w-24 h-24 rounded-3xl flex items-center justify-center text-white shadow-xl relative z-10 overflow-hidden bg-[#020617]">
+        {/* Profile Image Display */}
+        <div className={clsx(
+            "w-24 h-24 rounded-3xl flex items-center justify-center text-white shadow-xl relative z-10 overflow-hidden",
+            isUserAdmin ? "bg-red-600" : "bg-[#020617]"
+        )}>
            {profile?.avatar_url ? (
              <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Profile" />
            ) : (
@@ -60,8 +78,7 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
             {profile?.full_name || 'Member Account'}
            </h1>
            <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">
-            {/* FIXED: Dynamic Year */}
-            Registered Member • Since {new Date(profile?.created_at).getFullYear()}
+            Registered Member • Since {profile?.created_at ? new Date(profile.created_at).getFullYear() : '2024'}
            </p>
            
            <div className="flex flex-wrap gap-4 mt-6 justify-center md:justify-start">
@@ -84,6 +101,7 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+         {/* 2. Order History Table */}
          <div className="lg:col-span-2 space-y-4">
             <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.2em] ml-2 flex items-center gap-2">
                <Clock size={14} /> Recent Transactions
@@ -91,8 +109,8 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-sm">
                <table className="w-full text-left border-collapse">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                     <tr>
+                  <thead>
+                     <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                         <th className="px-6 py-4">Order Ref</th>
                         <th className="px-6 py-4">Date</th>
                         <th className="px-6 py-4 text-right">Amount</th>
@@ -101,19 +119,19 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                     {initialOrders.map((order: any) => (
+                     {initialOrders.map(order => (
                         <tr key={order.id} className="hover:bg-slate-50 transition-colors group">
                            <td className="px-6 py-4 font-bold text-slate-900 uppercase">#ORD-{order.order_number}</td>
                            <td className="px-6 py-4 text-slate-500 font-medium">{new Date(order.created_at).toLocaleDateString('en-MY')}</td>
                            <td className="px-6 py-4 text-right font-bold text-slate-900 italic">RM {Number(order.total_amount).toFixed(2)}</td>
                            <td className="px-6 py-4 text-center">
-                              <span className={clsx(
-                                "text-[10px] font-bold uppercase px-2.5 py-1 rounded-full border",
-                                order.status === 'completed' ? "bg-green-50 text-green-700 border-green-200" : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm"
-                              )}>
-                                 {order.status}
-                              </span>
-                           </td>
+                                <span className={clsx(
+                                  "text-[10px] font-bold uppercase px-3 py-1 rounded-full border",
+                                  order.status === 'completed' ? "bg-green-50 text-green-700 border-green-200 shadow-sm shadow-green-50" : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm shadow-amber-50"
+                                )}>
+                                   {order.status}
+                                </span>
+                             </td>
                            <td className="px-6 py-4 text-right">
                                <ChevronRight size={20} className="text-slate-300 ml-auto" />
                            </td>
@@ -121,9 +139,16 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
                      ))}
                   </tbody>
                </table>
+               {initialOrders.length === 0 && (
+                  <div className="py-24 text-center">
+                     <Package size={48} className="mx-auto text-slate-100 mb-4" />
+                     <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest italic">No purchase history found</p>
+                  </div>
+               )}
             </div>
          </div>
 
+         {/* 3. Account Sidebar Area */}
          <div className="space-y-6">
             <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.2em] ml-2">Shipping & Security</h3>
             
@@ -136,13 +161,22 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
                <p className="text-sm text-slate-400 leading-relaxed font-medium italic mb-8">
                   {profile?.address || "No primary address recorded. Please update your profile for faster checkout."}
                </p>
-               {/* FIXED: Update Profile Button Works Now */}
                <button 
                 onClick={() => setIsEditing(true)}
                 className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[11px] font-bold uppercase tracking-widest transition-all border border-white/10 active:scale-95"
                >
                   Update Profile
                </button>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
+               <div className="flex items-center gap-3 mb-4 text-orange-600">
+                  <ShieldCheck size={18} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Secure Member</span>
+               </div>
+               <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                  Your account is fully integrated with the PartsHub warehouse network. Enjoy priority stock syncing and automated order tracking.
+               </p>
             </div>
          </div>
       </div>
@@ -151,26 +185,26 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
       {isEditing && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
           <form onSubmit={handleUpdateProfile} className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
-             <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+             <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
                 <h3 className="font-bold text-slate-800 uppercase italic">Edit Profile</h3>
                 <button type="button" onClick={() => setIsEditing(false)} className="p-1 hover:bg-slate-200 rounded-full transition-all"><X size={20}/></button>
              </div>
              <div className="p-8 space-y-4">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Full Name</label>
-                  <input className="w-full p-3 bg-slate-50 border rounded-xl text-sm font-bold" value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} />
+                  <input required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500" value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Phone Number</label>
-                  <input className="w-full p-3 bg-slate-50 border rounded-xl text-sm font-bold" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                  <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Profile Image URL (ImgBB)</label>
-                  <input className="w-full p-3 bg-slate-50 border rounded-xl text-sm font-medium" value={formData.avatar_url} onChange={e => setFormData({...formData, avatar_url: e.target.value})} placeholder="https://i.ibb.co/..." />
+                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Avatar URL (ImgBB)</label>
+                  <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500" value={formData.avatar_url} onChange={e => setFormData({...formData, avatar_url: e.target.value})} placeholder="https://i.ibb.co/..." />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Shipping Address</label>
-                  <textarea rows={3} className="w-full p-3 bg-slate-50 border rounded-xl text-sm font-medium" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+                  <textarea rows={3} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
                 </div>
                 <button 
                   type="submit" 
