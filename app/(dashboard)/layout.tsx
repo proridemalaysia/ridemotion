@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, Package, ShoppingCart, BarChart3, LogOut, 
   Truck, Users, FileText, ClipboardCheck, Settings, 
@@ -40,63 +40,46 @@ const menuGroups = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
-  
-  // Explicit state to match your database columns
-  const [userState, setUserState] = useState<{
-    fullName: string;
-    role: string;
-    initial: string;
-  } | null>(null);
-  
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
-    async function loadIdentity() {
-      // 1. Get the Auth user
+    async function fetchProfile() {
       const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        router.push('/login');
-        return;
+      if (user) {
+        // Fallback info from email
+        const fallbackName = user.email?.split('@')[0] || "User";
+        
+        // Get real info from profiles table
+        const { data } = await supabase
+          .from('profiles')
+          .select('full_name, role')
+          .eq('id', user.id)
+          .single();
+
+        if (data) {
+          setProfile({
+            name: data.full_name || fallbackName,
+            role: data.role.toLowerCase().trim(),
+            initial: (data.full_name || fallbackName).charAt(0).toUpperCase()
+          });
+        } else {
+          // If profile table fetch fails, use fallback
+          setProfile({
+            name: fallbackName,
+            role: 'staff',
+            initial: fallbackName.charAt(0).toUpperCase()
+          });
+        }
       }
-
-      // 2. Immediate fallback while waiting for DB
-      const emailName = user.email?.split('@')[0] || "User";
-      setUserState({
-        fullName: emailName,
-        role: 'verifying...',
-        initial: emailName.charAt(0).toUpperCase()
-      });
-
-      // 3. Fetch from 'profiles' table using EXACT column names from your screenshot
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('full_name, role')
-        .eq('id', user.id)
-        .single();
-
-      if (profile) {
-        setUserState({
-          fullName: profile.full_name || emailName,
-          role: profile.role.toLowerCase().trim(), // Handle spaces/case
-          initial: (profile.full_name || emailName).charAt(0).toUpperCase()
-        });
-      } else {
-        console.error("Profile not found in database for ID:", user.id);
-      }
-      setIsLoaded(true);
     }
+    fetchProfile();
+  }, []);
 
-    loadIdentity();
-  }, [router]);
-
-  // STICKY CHECK: Must be exactly 'admin'
-  const isActualAdmin = userState?.role === 'admin';
+  const isUserAdmin = profile?.role === 'admin';
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
-      {/* SIDEBAR */}
+      {/* Sidebar */}
       <aside className="w-[260px] bg-[#020617] fixed h-full z-50 flex flex-col shadow-2xl">
         <div className="p-6 pt-8">
           <Link href="/admin">
@@ -115,13 +98,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     key={item.name}
                     href={item.href}
                     className={clsx(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-all duration-200 active:scale-95",
-                      active 
-                        ? "bg-[#2563EB] text-white shadow-lg shadow-blue-900/40" 
-                        : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-all",
+                      active ? "bg-[#2563EB] text-white shadow-lg shadow-blue-900/40" : "text-slate-400 hover:bg-slate-800 hover:text-white"
                     )}
                   >
-                    <item.icon size={18} strokeWidth={active ? 2.5 : 2} />
+                    <item.icon size={18} />
                     <span className="font-medium">{item.name}</span>
                   </Link>
                 );
@@ -129,8 +110,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
 
-          {/* ADMIN TOOLS - Verified check */}
-          {isActualAdmin && (
+          {/* Group 2: Admin Tools (Strict check) */}
+          {isUserAdmin && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
               <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] mb-3 px-3">
                 Admin Tools
@@ -143,11 +124,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       key={item.name}
                       href={item.href}
                       className={clsx(
-                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-all duration-200 active:scale-95",
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-all",
                         active ? "bg-[#2563EB] text-white shadow-lg shadow-blue-900/40" : "text-slate-400 hover:bg-slate-800 hover:text-white"
                       )}
                     >
-                      <item.icon size={18} strokeWidth={active ? 2.5 : 2} />
+                      <item.icon size={18} />
                       <span className="font-medium">{item.name}</span>
                     </Link>
                   );
@@ -157,35 +138,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </nav>
 
-        {/* BOTTOM PROFILE PANEL */}
+        {/* User Profile Section */}
         <div className="p-4 border-t border-slate-900 bg-[#020617]">
           <div className="flex items-center gap-3 px-2 mb-4">
-             {/* Icon: Red for Admin, Blue for Staff */}
              <div className={clsx(
-               "w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-lg",
-               isActualAdmin ? "bg-red-600 shadow-red-900/20" : "bg-[#2563EB] shadow-blue-900/20"
+               "w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold text-white shadow-lg transition-colors",
+               isUserAdmin ? "bg-red-600 shadow-red-900/20" : "bg-blue-600 shadow-blue-900/20"
              )}>
-                {userState?.initial || '?'}
+                {profile?.initial || '?'}
              </div>
-             
              <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold text-white truncate uppercase tracking-tight leading-none mb-1">
-                    {userState?.fullName || "VERIFYING..."}
+                <p className="text-[11px] font-bold text-white truncate uppercase">
+                    {profile?.name || 'SYNCING...'}
                 </p>
                 <p className={clsx(
                     "text-[9px] font-black uppercase tracking-widest",
-                    isActualAdmin ? "text-red-400" : "text-blue-400"
+                    isUserAdmin ? "text-red-400" : "text-blue-400"
                 )}>
-                    {userState?.role}
+                    {profile?.role || 'AUTH'}
                 </p>
              </div>
           </div>
           
           <form action={signOutAction} className="w-full">
-            <button 
-              type="submit"
-              className="flex items-center gap-2 px-2 py-2 text-[11px] font-bold text-slate-400 hover:text-red-400 w-full transition-all active:scale-95 group"
-            >
+            <button type="submit" className="flex items-center gap-2 px-2 py-2 text-[11px] font-bold text-slate-400 hover:text-red-400 w-full transition-all group">
               <LogOut size={16} className="group-hover:-translate-x-1 transition-transform" />
               <span className="uppercase tracking-widest font-bold">Sign Out</span>
             </button>
