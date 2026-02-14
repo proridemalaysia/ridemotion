@@ -40,46 +40,49 @@ const menuGroups = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [profile, setProfile] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<{
+    fullName: string;
+    role: string;
+    initial: string;
+  } | null>(null);
 
   useEffect(() => {
-    async function fetchProfile() {
+    async function loadIdentity() {
+      // 1. Get the Auth user
       const { data: { user } } = await supabase.auth.getUser();
+      
       if (user) {
-        // Fallback info from email
-        const fallbackName = user.email?.split('@')[0] || "User";
+        const emailName = user.email?.split('@')[0] || "User";
         
-        // Get real info from profiles table
-        const { data } = await supabase
+        // 2. Fetch from 'profiles' table
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('full_name, role')
           .eq('id', user.id)
           .single();
 
-        if (data) {
-          setProfile({
-            name: data.full_name || fallbackName,
-            role: data.role.toLowerCase().trim(),
-            initial: (data.full_name || fallbackName).charAt(0).toUpperCase()
+        if (profile) {
+          console.log("Current Profile Loaded:", profile);
+          setUserProfile({
+            fullName: profile.full_name || emailName,
+            role: profile.role.toLowerCase().trim(),
+            initial: (profile.full_name || emailName).charAt(0).toUpperCase()
           });
         } else {
-          // If profile table fetch fails, use fallback
-          setProfile({
-            name: fallbackName,
-            role: 'staff',
-            initial: fallbackName.charAt(0).toUpperCase()
-          });
+          console.error("No database row found for user:", user.id);
+          // Fallback if no profile row
+          setUserProfile({ fullName: emailName, role: 'staff', initial: emailName.charAt(0).toUpperCase() });
         }
       }
     }
-    fetchProfile();
+    loadIdentity();
   }, []);
 
-  const isUserAdmin = profile?.role === 'admin';
+  const isUserAdmin = userProfile?.role === 'admin';
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
-      {/* Sidebar */}
+      {/* SIDEBAR */}
       <aside className="w-[260px] bg-[#020617] fixed h-full z-50 flex flex-col shadow-2xl">
         <div className="p-6 pt-8">
           <Link href="/admin">
@@ -99,7 +102,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     href={item.href}
                     className={clsx(
                       "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-all",
-                      active ? "bg-[#2563EB] text-white shadow-lg shadow-blue-900/40" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                      active ? "bg-[#2563EB] text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
                     )}
                   >
                     <item.icon size={18} />
@@ -110,7 +113,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
 
-          {/* Group 2: Admin Tools (Strict check) */}
+          {/* Admin Tools - Visible if role is exactly admin */}
           {isUserAdmin && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
               <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] mb-3 px-3">
@@ -125,7 +128,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       href={item.href}
                       className={clsx(
                         "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-all",
-                        active ? "bg-[#2563EB] text-white shadow-lg shadow-blue-900/40" : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                        active ? "bg-[#2563EB] text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"
                       )}
                     >
                       <item.icon size={18} />
@@ -138,24 +141,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </nav>
 
-        {/* User Profile Section */}
+        {/* BOTTOM PROFILE PANEL */}
         <div className="p-4 border-t border-slate-900 bg-[#020617]">
           <div className="flex items-center gap-3 px-2 mb-4">
              <div className={clsx(
-               "w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold text-white shadow-lg transition-colors",
-               isUserAdmin ? "bg-red-600 shadow-red-900/20" : "bg-blue-600 shadow-blue-900/20"
+               "w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold text-white shadow-lg",
+               isUserAdmin ? "bg-red-600" : "bg-[#2563EB]"
              )}>
-                {profile?.initial || '?'}
+                {userProfile?.initial || '?'}
              </div>
+             
              <div className="flex-1 min-w-0">
                 <p className="text-[11px] font-bold text-white truncate uppercase">
-                    {profile?.name || 'SYNCING...'}
+                    {userProfile?.fullName || "Syncing..."}
                 </p>
                 <p className={clsx(
                     "text-[9px] font-black uppercase tracking-widest",
                     isUserAdmin ? "text-red-400" : "text-blue-400"
                 )}>
-                    {profile?.role || 'AUTH'}
+                    {userProfile?.role || "Auth"}
                 </p>
              </div>
           </div>
@@ -163,14 +167,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <form action={signOutAction} className="w-full">
             <button type="submit" className="flex items-center gap-2 px-2 py-2 text-[11px] font-bold text-slate-400 hover:text-red-400 w-full transition-all group">
               <LogOut size={16} className="group-hover:-translate-x-1 transition-transform" />
-              <span className="uppercase tracking-widest font-bold">Sign Out</span>
+              <span className="uppercase tracking-widest">Sign Out</span>
             </button>
           </form>
         </div>
       </aside>
 
       <main className="ml-[260px] flex-1 min-h-screen">
-        <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-end px-10 sticky top-0 z-40">
+        <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-end px-8 sticky top-0 z-40">
            <NotificationBell />
         </div>
         <div className="p-0">
