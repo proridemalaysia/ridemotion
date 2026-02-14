@@ -10,10 +10,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // --- 1. FETCH LOGIC ---
   const fetchCart = useCallback(async (userId: string | null) => {
     if (userId) {
-      // Fetch from Supabase for logged-in users
       const { data } = await supabase
         .from('cart_items')
         .select(`*, products_flat (*)`)
@@ -24,7 +22,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setCartCount(data.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0));
       }
     } else {
-      // Fetch from localStorage for Guests
       const localData = localStorage.getItem('guest_cart');
       const items = localData ? JSON.parse(localData) : [];
       setCartItems(items);
@@ -32,7 +29,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // --- 2. SESSION SYNC ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -48,10 +44,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, [fetchCart]);
 
-  // --- 3. ADD TO CART (HYBRID) ---
   const addToCart = async (variantId: string, productData?: any) => {
     if (user) {
-      // Database Logic for Logged In Users
       const { data: existing } = await supabase
         .from('cart_items')
         .select('*')
@@ -66,19 +60,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       await fetchCart(user.id);
     } else {
-      // LocalStorage Logic for Guests
       const localData = localStorage.getItem('guest_cart');
       let items = localData ? JSON.parse(localData) : [];
-      
       const existingIdx = items.findIndex((i: any) => i.variant_id === variantId);
       if (existingIdx > -1) {
         items[existingIdx].quantity += 1;
       } else {
-        // We include product info in the local cart so we can display it without more DB calls
         items.push({
           variant_id: variantId,
           quantity: 1,
-          products_flat: productData // Pass the product data from the UI
+          products_flat: productData
         });
       }
       localStorage.setItem('guest_cart', JSON.stringify(items));
@@ -87,7 +78,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
-  // --- 4. REMOVE LOGIC ---
   const removeFromCart = async (variantId: string) => {
     if (user) {
       await supabase.from('cart_items').delete().eq('variant_id', variantId).eq('user_id', user.id);
@@ -103,9 +93,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const clearCart = async () => {
-    if (user) {
-      await supabase.from('cart_items').delete().eq('user_id', user.id);
-    }
+    if (user) await supabase.from('cart_items').delete().eq('user_id', user.id);
     localStorage.removeItem('guest_cart');
     setCartItems([]);
     setCartCount(0);

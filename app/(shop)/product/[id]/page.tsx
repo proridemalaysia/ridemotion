@@ -15,7 +15,7 @@ import { clsx } from 'clsx';
 export default function ProductDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { addToCart, isInitialized } = useCart();
+  const { addToCart, isInitialized, user } = useCart();
   
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -25,10 +25,12 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<any>(null);
   const [variants, setVariants] = useState<any[]>([]);
   
+  // UI States
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedBundle, setSelectedBundle] = useState<'front' | 'rear' | 'full'>('full');
   const [activeTab, setActiveTab] = useState<'desc' | 'specs'>('desc');
   
+  // Admin Edit States
   const [editImages, setEditImages] = useState<string[]>([]);
   const [newImageUrl, setNewImageUrl] = useState("");
   const [editDiscount, setEditDiscount] = useState(0);
@@ -64,6 +66,7 @@ export default function ProductDetailPage() {
     fetchData();
   }, [fetchData]);
 
+  // --- BUNDLE CALCULATION ---
   const bundles = useMemo(() => {
     const getPrice = (v: any) => Number(v?.price_online || v?.price_myr || 0);
     const front = variants.filter(v => v.position?.toUpperCase().includes('FRONT'));
@@ -85,20 +88,20 @@ export default function ProductDetailPage() {
     };
   }, [variants]);
 
-  const currentBundle = bundles[selectedBundle];
-  const finalPrice = currentBundle.price * (1 - (editDiscount / 100));
+  // FIXED: Explicitly defined currentPrice and finalPrice for display
+  const currentBundle = bundles[selectedBundle] || { price: 0, components: [] };
+  const currentPrice = currentBundle.price;
+  const finalPrice = currentPrice * (1 - (editDiscount / 100));
 
   const handleAddToCart = async () => {
     if (!isInitialized) return;
     setSyncing(true);
     
     try {
-      // Add each component of the bundle to the cart
-      // We pass the full variant object so the local cart can display it without re-fetching
       for (const variant of currentBundle.components) {
         await addToCart(variant.id, {
             ...variant,
-            products_flat: product // Attach parent info
+            products_flat: product 
         });
       }
       router.push('/cart');
@@ -109,7 +112,6 @@ export default function ProductDetailPage() {
     }
   };
 
-  // Admin Media Helpers
   const addImage = () => {
     if (!newImageUrl) return;
     setEditImages(prev => [...prev, newImageUrl]);
@@ -158,7 +160,7 @@ export default function ProductDetailPage() {
   };
 
   if (loading) return <div className="flex justify-center py-40"><Spinner size={40} className="text-blue-600" /></div>;
-  if (!product) return <div className="p-20 text-center">Product not found.</div>;
+  if (!product) return <div className="p-20 text-center text-slate-400 font-bold uppercase tracking-widest">Part Not Found</div>;
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 animate-in fade-in duration-500 pb-32 font-sans">
@@ -167,6 +169,7 @@ export default function ProductDetailPage() {
       </button>
 
       <div className="flex flex-col lg:flex-row gap-12">
+        
         {/* LEFT: GALLERY AREA */}
         <div className="w-full lg:w-1/2 space-y-6">
           <div className="bg-white rounded-[40px] border border-slate-200 aspect-square flex items-center justify-center overflow-hidden shadow-sm relative group">
@@ -202,7 +205,7 @@ export default function ProductDetailPage() {
           <div className="space-y-4">
             <span className="text-blue-600 font-bold uppercase tracking-[0.2em] text-[10px] bg-blue-50 px-3 py-1 rounded-full border border-blue-100">{product.brands?.name}</span>
             <h1 className="text-4xl font-bold text-slate-900 leading-tight uppercase italic tracking-tighter">
-              <span className="mr-3 uppercase font-medium">{product.category}</span>
+              <span className="mr-3">{product.category}</span>
               {product.name}
             </h1>
             <p className="text-slate-400 font-bold text-xs uppercase tracking-widest font-mono">Item Code: {variants[0]?.item_code}</p>
@@ -210,9 +213,9 @@ export default function ProductDetailPage() {
 
           <div className="bg-white rounded-[32px] p-8 border border-slate-200 shadow-sm space-y-8">
              <div className="flex flex-wrap gap-3">
-                {bundles.front.available && <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Front Set (2pcs)</button>}
-                {bundles.rear.available && <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Rear Set (2pcs)</button>}
-                <button onClick={() => setSelectedBundle('full')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'full' ? "bg-[#020617] text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Full Set (4pcs)</button>
+                {bundles.front.available && <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Front Set (2pcs)</button>}
+                {bundles.rear.available && <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Rear Set (2pcs)</button>}
+                <button onClick={() => setSelectedBundle('full')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'full' ? "bg-[#020617] text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Full Set (4pcs)</button>
              </div>
 
              <div className="flex items-baseline gap-4 pt-4 border-t">
@@ -241,9 +244,9 @@ export default function ProductDetailPage() {
                {isEditing && (
                  <div className="p-8 space-y-10 animate-in slide-in-from-top-2 duration-300">
                     <div className="space-y-4">
-                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Gallery Sequence Manager</label>
+                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Gallery Sequence Manager</label>
                        <div className="flex gap-2">
-                        <input className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm" value={newImageUrl} onChange={e => setNewImageUrl(e.target.value)} placeholder="Paste ImgBB URL..." />
+                        <input className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-1 focus:ring-blue-500" value={newImageUrl} onChange={e => setNewImageUrl(e.target.value)} placeholder="Paste ImgBB URL..." />
                         <button onClick={addImage} className="bg-blue-600 text-white p-3 rounded-xl active:scale-90"><Plus size={18}/></button>
                        </div>
                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
@@ -252,11 +255,11 @@ export default function ProductDetailPage() {
                                <img src={img} className="w-full h-full object-cover" />
                                <div className="absolute inset-0 bg-slate-900/70 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-1.5">
                                   <div className="flex gap-1">
-                                    <button onClick={() => moveImage(i, 'left')} className="p-1 bg-white rounded text-slate-800"><ChevronLeft size={12}/></button>
-                                    <button onClick={() => moveImage(i, 'right')} className="p-1 bg-white rounded text-slate-800"><ChevronRight size={12}/></button>
+                                    <button onClick={() => moveImage(i, 'left')} className="p-1 bg-white rounded text-slate-800 active:scale-90"><ChevronLeft size={12}/></button>
+                                    <button onClick={() => moveImage(i, 'right')} className="p-1 bg-white rounded text-slate-800 active:scale-90"><ChevronRight size={12}/></button>
                                   </div>
-                                  <button onClick={() => setAsMain(i)} className="px-2 py-1 bg-blue-600 text-white text-[8px] font-bold rounded uppercase">Set Main</button>
-                                  <button onClick={() => removeImage(i)} className="p-1 bg-red-600 text-white rounded"><Trash2 size={12} /></button>
+                                  <button onClick={() => setAsMain(i)} className="px-2 py-1 bg-blue-600 text-white text-[8px] font-bold rounded uppercase active:scale-95">Set Main</button>
+                                  <button onClick={() => removeImage(i)} className="p-1 bg-red-600 text-white rounded active:scale-95"><Trash2 size={12} /></button>
                                </div>
                                {i === 0 && <div className="absolute top-1 left-1 bg-blue-600 text-white text-[7px] font-bold px-1.5 py-0.5 rounded shadow">MAIN</div>}
                             </div>
@@ -264,23 +267,23 @@ export default function ProductDetailPage() {
                        </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t">
                        <div className="space-y-2">
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><AlignLeft size={12}/> Marketing Description</label>
-                          <textarea rows={4} className="w-full p-3 bg-slate-50 border rounded-xl text-xs font-medium outline-none" value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Marketing text..."/>
+                          <textarea rows={4} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-1 focus:ring-blue-500" value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Describe the item..."/>
                        </div>
                        <div className="space-y-2">
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><ListChecks size={12}/> Technical Specs</label>
-                          <textarea rows={4} className="w-full p-3 bg-slate-50 border rounded-xl text-xs font-mono outline-none" value={editSpecs} onChange={e => setEditSpecs(e.target.value)} placeholder="OEM, Materials..."/>
+                          <textarea rows={4} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:ring-1 focus:ring-blue-500" value={editSpecs} onChange={e => setEditSpecs(e.target.value)} placeholder="Technical details..."/>
                        </div>
                     </div>
 
                     <div className="space-y-2">
                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Individual Item Discount (%)</label>
-                       <input type="number" className="w-32 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold" value={editDiscount} onChange={e => setEditDiscount(parseFloat(e.target.value) || 0)} />
+                       <input type="number" className="w-32 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-1 focus:ring-blue-500" value={editDiscount} onChange={e => setEditDiscount(parseFloat(e.target.value) || 0)} />
                     </div>
 
-                    <button onClick={handleUpdate} disabled={syncing} className="w-full bg-[#020617] text-white py-4 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2 shadow-lg">
+                    <button onClick={handleUpdate} disabled={syncing} className="w-full bg-[#020617] text-white py-4 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2 shadow-xl shadow-slate-200">
                        {syncing ? <Spinner size={16} /> : <Save size={16} />} Sync Assets & Content
                     </button>
                  </div>
