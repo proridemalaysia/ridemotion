@@ -3,23 +3,21 @@ import React, { useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { supabase } from '@/lib/supabase';
 import { 
-  Trash2, 
-  CreditCard, 
-  ArrowRight, 
-  Package, 
-  ShieldCheck, 
-  ShoppingCart,
-  Tag,
-  ArrowLeft
+  Trash2, CreditCard, ArrowRight, Package, 
+  ShieldCheck, ShoppingCart, Tag, ArrowLeft, User, MapPin, Mail, Phone
 } from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 import Link from 'next/link';
 
 export default function CartPage() {
-  const { cartItems, cartCount, fetchCart, user, removeFromCart } = useCart();
+  const { cartItems, cartCount, fetchCart, user, removeFromCart, clearCart } = useCart();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  
+  // Guest Details State
+  const [guestInfo, setGuestInfo] = useState({
+    name: '', email: '', phone: '', address: ''
+  });
 
-  // Calculation Engine: Calculates total based on price_online and individual discounts
   const totalAmount = cartItems.reduce((acc: number, item: any) => {
     const basePrice = Number(item.products_flat?.price_online || item.products_flat?.price_myr || 0);
     const discount = Number(item.products_flat?.discount_percent || 0);
@@ -28,56 +26,61 @@ export default function CartPage() {
   }, 0);
 
   const handleCheckout = async () => {
-    if (!user) return window.location.href = '/login';
     if (cartItems.length === 0) return;
     
+    // Validate for Guests
+    if (!user) {
+        if (!guestInfo.name || !guestInfo.email || !guestInfo.phone || !guestInfo.address) {
+            alert("Please fill in your shipping details.");
+            return;
+        }
+    }
+
     setIsCheckingOut(true);
     try {
-      // 1. Create the Sale record in the 'sales' table
+      // 1. Create the Sale record
+      const saleData = {
+        customer_id: user ? user.id : null, // Store null for guests
+        source: 'online',
+        total_amount: totalAmount,
+        status: 'pending',
+        payment_status: 'paid',
+        payment_method: 'fpx',
+        // Attach guest info to order metadata or address column
+        shipping_address: user ? user.address : `${guestInfo.name} | ${guestInfo.phone} | ${guestInfo.address}`,
+        customer_phone: user ? user.phone : guestInfo.phone
+      };
+
       const { data: sale, error: sError } = await supabase
         .from('sales')
-        .insert([{
-          customer_id: user.id,
-          source: 'online',
-          total_amount: totalAmount,
-          status: 'pending',
-          payment_status: 'paid',
-          payment_method: 'fpx'
-        }])
-        .select()
-        .single();
+        .insert([saleData])
+        .select().single();
 
       if (sError) throw sError;
 
-      // 2. Prepare items for the 'sale_items' table
+      // 2. Insert Sale Items
       const saleItems = cartItems.map((item: any) => {
         const basePrice = Number(item.products_flat?.price_online || item.products_flat?.price_myr || 0);
-        const discount = Number(item.products_flat?.discount_percent || 0);
-        const finalUnitPrice = basePrice * (1 - (discount / 100));
-        
+        const finalUnitPrice = basePrice * (1 - (item.products_flat?.discount_percent || 0) / 100);
         return {
           sale_id: sale.id,
-          variant_id: item.variant_id, // Links to products_flat ID
+          variant_id: item.variant_id,
           quantity: item.quantity,
           unit_price: finalUnitPrice,
           subtotal: finalUnitPrice * item.quantity
         };
       });
 
-      // 3. Insert Sale Items (Triggers automatic stock deduction in database)
-      const { error: iError } = await supabase.from('sale_items').insert(saleItems);
-      if (iError) throw iError;
-
-      // 4. Clear the shopping cart
-      await supabase.from('cart_items').delete().eq('user_id', user.id);
+      await supabase.from('sale_items').insert(saleItems);
       
-      // 5. Refresh local cart state and redirect
-      await fetchCart(user.id);
-      alert("Order successful! Your parts are being prepared for shipping.");
-      window.location.href = "/profile";
+      // 3. Clear Cart
+      await clearCart();
+      
+      alert("Order Placed Successfully!");
+      window.location.href = user ? "/profile" : "/";
       
     } catch (err: any) {
-      alert("Checkout Error: " + err.message);
+      alert(err.message);
     } finally {
       setIsCheckingOut(false);
     }
@@ -85,155 +88,74 @@ export default function CartPage() {
 
   return (
     <div className="max-w-6xl mx-auto py-10 px-4 animate-in fade-in duration-700">
-      {/* Header Area */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4 font-sans">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3 uppercase italic">
-            <ShoppingCart className="text-blue-600" size={32} />
-            My Shopping Cart
+            <ShoppingCart className="text-blue-600" size={32} /> Checkout
           </h1>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
-            Warehouse Reservation: {cartCount} items
-          </p>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Review your warehouse order</p>
         </div>
-        <Link 
-          href="/" 
-          className="flex items-center gap-2 text-blue-600 font-bold text-xs uppercase tracking-widest hover:underline active:scale-95 transition-all"
-        >
-          <ArrowLeft size={16} /> Continue Browsing
-        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         
-        {/* LEFT COLUMN: LIST OF ITEMS */}
-        <div className="lg:col-span-2 space-y-4">
-          {cartItems.length === 0 ? (
-            <div className="bg-white rounded-[32px] border-2 border-dashed border-slate-200 p-20 text-center">
-              <Package size={64} className="mx-auto text-slate-100 mb-6" />
-              <h3 className="text-lg font-bold text-slate-400 uppercase italic">Your cart is empty</h3>
-              <Link href="/" className="mt-4 inline-block bg-blue-600 text-white px-8 py-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all">
-                Shop Now
-              </Link>
+        <div className="lg:col-span-2 space-y-8">
+          {/* GUEST INFO FORM - Shown only if not logged in */}
+          {!user && (
+            <div className="bg-blue-600 rounded-[32px] p-8 text-white shadow-xl animate-in slide-in-from-top-4 duration-500">
+               <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-white/20 rounded-lg"><User size={20}/></div>
+                  <h2 className="text-lg font-bold uppercase italic tracking-tighter">Guest Shipping Details</h2>
+               </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input placeholder="Full Name" className="bg-white/10 border border-white/20 p-3 rounded-xl outline-none focus:bg-white/20 placeholder:text-blue-200 text-sm font-medium" onChange={e => setGuestInfo({...guestInfo, name: e.target.value})} />
+                  <input placeholder="Email Address" className="bg-white/10 border border-white/20 p-3 rounded-xl outline-none focus:bg-white/20 placeholder:text-blue-200 text-sm font-medium" onChange={e => setGuestInfo({...guestInfo, email: e.target.value})} />
+                  <input placeholder="Phone (+60...)" className="bg-white/10 border border-white/20 p-3 rounded-xl outline-none focus:bg-white/20 placeholder:text-blue-200 text-sm font-medium" onChange={e => setGuestInfo({...guestInfo, phone: e.target.value})} />
+                  <textarea placeholder="Complete Delivery Address" rows={2} className="md:col-span-2 bg-white/10 border border-white/20 p-3 rounded-xl outline-none focus:bg-white/20 placeholder:text-blue-200 text-sm font-medium" onChange={e => setGuestInfo({...guestInfo, address: e.target.value})} />
+               </div>
+               <p className="mt-4 text-[10px] text-blue-100 font-medium uppercase tracking-widest opacity-70">Optional: <Link href="/login" className="underline font-bold">Login</Link> to auto-fill these details and earn points.</p>
             </div>
-          ) : (
-            cartItems.map((item: any) => {
-              const basePrice = Number(item.products_flat?.price_online || item.products_flat?.price_myr || 0);
-              const discount = Number(item.products_flat?.discount_percent || 0);
-              const finalPrice = basePrice * (1 - (discount / 100));
-
-              return (
-                <div key={item.id} className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-6 items-center group transition-all hover:border-blue-300">
-                  {/* Part Visual */}
-                  <div className="w-24 h-24 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 border border-slate-100 overflow-hidden shrink-0">
-                    {item.products_flat?.image_url ? (
-                      <img src={item.products_flat.image_url} className="w-full h-full object-cover" alt="part" />
-                    ) : (
-                      <Package size={32} />
-                    )}
-                  </div>
-                  
-                  {/* Part Details */}
-                  <div className="flex-1 text-center sm:text-left">
-                    <h3 className="font-bold text-slate-800 text-base uppercase leading-tight">
-                      {item.products_flat?.name || 'Automotive Part'}
-                    </h3>
-                    <p className="text-[10px] text-blue-600 font-bold mt-1 uppercase tracking-widest italic">
-                      Item Code: {item.products_flat?.item_code || item.products_flat?.part_number}
-                    </p>
-                    <div className="flex items-center justify-center sm:justify-start gap-4 mt-4">
-                       <div className="flex flex-col">
-                          <p className="text-slate-900 font-bold text-lg italic">RM {finalPrice.toFixed(2)}</p>
-                          {discount > 0 && (
-                            <span className="text-[10px] text-slate-300 line-through font-medium">RM {basePrice.toFixed(2)}</span>
-                          )}
-                       </div>
-                       <div className="h-6 w-px bg-slate-100"></div>
-                       <span className="text-xs bg-slate-50 px-3 py-1 rounded-full font-bold text-slate-500 uppercase">
-                        Qty: {item.quantity}
-                       </span>
-                    </div>
-                  </div>
-
-                  {/* Remove Button */}
-                  <button 
-                    onClick={() => removeFromCart(item.id)}
-                    className="p-4 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all active:scale-90"
-                    title="Remove from cart"
-                  >
-                    <Trash2 size={24} />
-                  </button>
-                </div>
-              );
-            })
           )}
+
+          {/* ITEM LIST */}
+          <div className="space-y-4">
+            {cartItems.map((item: any) => (
+                <div key={item.variant_id} className="bg-white p-6 rounded-3xl border border-slate-200 flex gap-6 items-center shadow-sm">
+                   <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 shrink-0">
+                      <Package size={32} />
+                   </div>
+                   <div className="flex-1">
+                      <h3 className="font-bold text-slate-800 text-sm uppercase italic">{item.products_flat?.name}</h3>
+                      <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-1">Item: {item.products_flat?.item_code}</p>
+                      <div className="flex items-center gap-4 mt-3">
+                         <span className="text-lg font-bold text-slate-900">RM {(item.products_flat?.price_online * (1 - (item.products_flat?.discount_percent / 100))).toFixed(2)}</span>
+                         <span className="px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold text-slate-500 uppercase">Qty: {item.quantity}</span>
+                      </div>
+                   </div>
+                   <button onClick={() => removeFromCart(item.variant_id)} className="p-3 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={20}/></button>
+                </div>
+            ))}
+          </div>
         </div>
 
-        {/* RIGHT COLUMN: ORDER SUMMARY */}
+        {/* SUMMARY */}
         <div className="space-y-6">
-          <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-xl h-fit sticky top-28">
-            <h2 className="font-bold text-slate-900 text-lg mb-6 uppercase tracking-widest italic border-b border-slate-50 pb-4">
-              Order Summary
-            </h2>
-            
+          <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-2xl h-fit sticky top-28">
+            <h2 className="font-bold text-slate-900 text-lg mb-6 uppercase tracking-widest italic border-b border-slate-50 pb-4">Check-Out</h2>
             <div className="space-y-4 mb-8">
-              <div className="flex justify-between text-slate-500 font-bold text-[11px] uppercase tracking-widest">
-                <span>Subtotal</span>
-                <span className="font-mono">RM {totalAmount.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-slate-500 font-bold text-[11px] uppercase tracking-widest">
-                <span>Shipping Fee</span>
-                <span className="text-green-600">FREE</span>
-              </div>
-              
+              <div className="flex justify-between text-slate-500 font-bold text-xs uppercase tracking-widest"><span>Subtotal</span><span>RM {totalAmount.toFixed(2)}</span></div>
+              <div className="flex justify-between text-slate-500 font-bold text-xs uppercase tracking-widest"><span>Shipping</span><span className="text-green-600">FREE</span></div>
               <div className="pt-6 border-t border-slate-100 flex justify-between items-end">
-                 <div className="flex flex-col">
-                    <span className="font-bold text-slate-400 uppercase text-[9px] tracking-widest">Total Payable</span>
-                    <span className="text-3xl font-bold text-slate-900 tracking-tighter italic">
-                      RM {totalAmount.toFixed(2)}
-                    </span>
-                 </div>
-                 {totalAmount > 0 && (
-                   <div className="flex items-center gap-1 text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-lg uppercase italic">
-                      <Tag size={12}/> Best Price
-                   </div>
-                 )}
+                 <div className="flex flex-col"><span className="font-bold text-slate-400 uppercase text-[9px]">Grand Total</span><span className="text-3xl font-bold text-slate-900 italic tracking-tighter">RM {totalAmount.toFixed(2)}</span></div>
               </div>
             </div>
-            
-            <div className="bg-blue-50/50 p-4 rounded-2xl flex gap-3 mb-8 border border-blue-100">
-              <ShieldCheck className="text-blue-600 shrink-0" size={20} />
-              <p className="text-[10px] text-blue-800 font-bold uppercase leading-relaxed tracking-tight">
-                Live Inventory Locked. Your parts are reserved for 15 minutes.
-              </p>
-            </div>
-
             <button 
-              onClick={handleCheckout}
-              disabled={cartItems.length === 0 || isCheckingOut}
-              className="w-full bg-[#020617] text-white py-5 rounded-[20px] font-bold text-sm flex items-center justify-center gap-3 hover:bg-slate-800 active:scale-[0.97] transition-all disabled:opacity-30 uppercase tracking-[0.2em] shadow-2xl shadow-slate-200"
+              onClick={handleCheckout} 
+              disabled={isCheckingOut || cartCount === 0}
+              className="w-full bg-[#2563EB] text-white py-5 rounded-[24px] font-bold text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-30"
             >
-              {isCheckingOut ? (
-                <div className="flex items-center gap-2">
-                  <Spinner size={18} />
-                  <span>Processing...</span>
-                </div>
-              ) : (
-                <>
-                  <CreditCard size={20} />
-                  <span>Finalize Order</span>
-                  <ArrowRight size={18} />
-                </>
-              )}
+              {isCheckingOut ? <Spinner size={20}/> : "Complete Payment"}
             </button>
-          </div>
-
-          {/* Customer Help Box */}
-          <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6">
-             <h4 className="text-[11px] font-bold text-slate-800 uppercase mb-2">Need Assistance?</h4>
-             <p className="text-xs text-slate-500 leading-relaxed font-medium">
-               Call our technical support at <b>+60 3-1234 5678</b> for vehicle compatibility verification.
-             </p>
           </div>
         </div>
       </div>

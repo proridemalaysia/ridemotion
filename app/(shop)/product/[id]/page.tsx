@@ -15,7 +15,7 @@ import { clsx } from 'clsx';
 export default function ProductDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { addToCart, user, isInitialized } = useCart();
+  const { addToCart, isInitialized } = useCart();
   
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -70,53 +70,37 @@ export default function ProductDetailPage() {
     const rear = variants.filter(v => v.position?.toUpperCase().includes('REAR'));
 
     const calc = (parts: any[]) => {
-      if (parts.length >= 2) return getPrice(parts[0]) + getPrice(parts[1]);
-      if (parts.length === 1) return getPrice(parts[0]) * 2;
-      return 0;
+      if (parts.length >= 2) return { price: getPrice(parts[0]) + getPrice(parts[1]), data: parts };
+      if (parts.length === 1) return { price: getPrice(parts[0]) * 2, data: [parts[0]] };
+      return { price: 0, data: [] };
     };
 
-    const fPrice = calc(front);
-    const rPrice = calc(rear);
+    const fObj = calc(front);
+    const rObj = calc(rear);
 
     return {
-      front: { price: fPrice, ids: front.map(v => v.id), available: fPrice > 0 },
-      rear: { price: rPrice, ids: rear.map(v => v.id), available: rPrice > 0 },
-      full: { price: fPrice + rPrice, ids: variants.map(v => v.id), available: (fPrice + rPrice) > 0 }
+      front: { price: fObj.price, components: fObj.data, available: fObj.price > 0 },
+      rear: { price: rObj.price, components: rObj.data, available: rObj.price > 0 },
+      full: { price: fObj.price + rObj.price, components: [...fObj.data, ...rObj.data], available: (fObj.price + rObj.price) > 0 }
     };
   }, [variants]);
 
-  const currentPrice = bundles[selectedBundle]?.price || 0;
-  const finalPrice = currentPrice * (1 - (editDiscount / 100));
+  const currentBundle = bundles[selectedBundle];
+  const finalPrice = currentBundle.price * (1 - (editDiscount / 100));
 
   const handleAddToCart = async () => {
-    // 1. Wait for system initialization
     if (!isInitialized) return;
-
-    // 2. Immediate check for user session
-    if (!user) {
-      alert("Please sign in to add items to your cart.");
-      router.push('/login');
-      return;
-    }
-
-    const componentIds = bundles[selectedBundle].ids;
-    if (componentIds.length === 0) {
-      alert("No components found for this selection.");
-      return;
-    }
-
     setSyncing(true);
     
     try {
-      // Add components sequentially
-      for (const vId of componentIds) {
-        const result = await addToCart(vId);
-        if (!result.success && result.error === 'auth_required') {
-          router.push('/login');
-          return;
-        }
+      // Add each component of the bundle to the cart
+      // We pass the full variant object so the local cart can display it without re-fetching
+      for (const variant of currentBundle.components) {
+        await addToCart(variant.id, {
+            ...variant,
+            products_flat: product // Attach parent info
+        });
       }
-      
       router.push('/cart');
     } catch (err) {
       console.error("Cart process failed", err);
@@ -125,6 +109,7 @@ export default function ProductDetailPage() {
     }
   };
 
+  // Admin Media Helpers
   const addImage = () => {
     if (!newImageUrl) return;
     setEditImages(prev => [...prev, newImageUrl]);
@@ -227,7 +212,7 @@ export default function ProductDetailPage() {
              <div className="flex flex-wrap gap-3">
                 {bundles.front.available && <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Front Set (2pcs)</button>}
                 {bundles.rear.available && <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Rear Set (2pcs)</button>}
-                <button onClick={() => setSelectedBundle('full')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'full' ? "bg-slate-900 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Full Set (4pcs)</button>
+                <button onClick={() => setSelectedBundle('full')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'full' ? "bg-[#020617] text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Full Set (4pcs)</button>
              </div>
 
              <div className="flex items-baseline gap-4 pt-4 border-t">
