@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   User, Star, Package, Clock, ShieldCheck, 
   MapPin, Truck, ExternalLink, ChevronRight, Save, X, Landmark 
@@ -7,7 +7,7 @@ import {
 import { clsx } from 'clsx';
 import { supabase } from '@/lib/supabase';
 import { signOutAction } from '@/app/login/actions';
-import { Spinner } from './Spinner'; // Added missing import
+import { Spinner } from './Spinner';
 
 interface MemberProfileViewProps {
   initialProfile: any;
@@ -19,7 +19,6 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Editable Form State - Now includes TIN and BRN
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
     phone: profile?.phone || '',
@@ -29,12 +28,13 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
     brn: profile?.brn || ''
   });
 
-  // Robust Date Parser
-  const getRegYear = () => {
-    if (!profile?.created_at) return "2024";
-    const date = new Date(profile.created_at);
-    return isNaN(date.getTime()) ? "2024" : date.getFullYear();
-  };
+  // ROBUST DATE CALCULATOR - Re-calculates if profile changes
+  const registrationYear = useMemo(() => {
+    const rawDate = profile?.created_at;
+    if (!rawDate) return "2026";
+    const date = new Date(rawDate);
+    return isNaN(date.getTime()) ? "2026" : date.getFullYear();
+  }, [profile?.created_at]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,10 +61,10 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
       if (data) {
         setProfile(data);
         setIsEditing(false);
-        alert("Profile updated successfully!");
+        alert("Success: Profile updated.");
       }
     } catch (err: any) {
-      alert("Error updating profile: " + err.message);
+      alert("Error: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -79,10 +79,9 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
         <div className="absolute -right-20 -top-20 w-64 h-64 bg-slate-50 rounded-full blur-3xl opacity-50"></div>
         
-        {/* Profile Image Display */}
         <div className={clsx(
             "w-24 h-24 rounded-3xl flex items-center justify-center text-white shadow-xl relative z-10 overflow-hidden",
-            isUserAdmin ? "bg-red-600" : "bg-[#020617]"
+            isUserAdmin ? "bg-red-600 shadow-red-900/20" : "bg-[#020617] shadow-slate-900/20"
         )}>
            {profile?.avatar_url ? (
              <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Profile" />
@@ -96,7 +95,7 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
             {profile?.full_name || 'Member Account'}
            </h1>
            <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">
-            Registered Member • Since {getRegYear()}
+            Registered Member • Since {registrationYear}
            </p>
            
            <div className="flex flex-wrap gap-4 mt-6 justify-center md:justify-start">
@@ -119,7 +118,6 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-         {/* 2. Order History Table */}
          <div className="lg:col-span-2 space-y-4">
             <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.2em] ml-2 flex items-center gap-2">
                <Clock size={14} /> Recent Transactions
@@ -146,7 +144,7 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
                               <td className="px-6 py-4 text-center">
                                 <span className={clsx(
                                   "text-[10px] font-bold uppercase px-3 py-1 rounded-full border",
-                                  order.status === 'completed' ? "bg-green-50 text-green-700 border-green-200 shadow-sm shadow-green-50" : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm shadow-amber-50"
+                                  order.status === 'completed' ? "bg-green-50 text-green-700 border-green-200 shadow-sm" : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm"
                                 )}>
                                    {order.status}
                                 </span>
@@ -157,36 +155,13 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
                                </button>
                              </td>
                            </tr>
-                           {/* Tracking Integration */}
-                           {order.tracking_number && (
-                             <tr className="bg-blue-50/40 border-b border-slate-100">
-                               <td colSpan={5} className="px-6 py-3">
-                                  <div className="flex items-center justify-between text-[11px]">
-                                     <div className="flex items-center gap-3 font-bold text-blue-700 uppercase tracking-tighter">
-                                        <Truck size={14} className="animate-bounce" />
-                                        <span>Shipped via {order.courier_name} • <span className="underline decoration-2">{order.tracking_number}</span></span>
-                                     </div>
-                                     <button className="flex items-center gap-1 font-bold text-blue-600 hover:underline uppercase tracking-widest">
-                                        Track Parcel <ExternalLink size={12} />
-                                     </button>
-                                  </div>
-                               </td>
-                             </tr>
-                           )}
                         </React.Fragment>
                      ))}
                   </tbody>
                </table>
-               {initialOrders.length === 0 && (
-                  <div className="py-24 text-center">
-                     <Package size={48} className="mx-auto text-slate-100 mb-4" />
-                     <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest italic">No purchase history found</p>
-                  </div>
-               )}
             </div>
          </div>
 
-         {/* 3. Account Sidebar Area */}
          <div className="space-y-6">
             <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.2em] ml-2">Shipping & Security</h3>
             
@@ -197,7 +172,7 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
                   <span className="text-xs font-bold uppercase tracking-widest">Primary Address</span>
                </div>
                <p className="text-sm text-slate-400 leading-relaxed font-medium italic mb-8">
-                  {profile?.address || "No primary address recorded. Please update your profile for faster checkout."}
+                  {profile?.address || "No primary address recorded."}
                </p>
                <button 
                 onClick={() => setIsEditing(true)}
@@ -206,43 +181,31 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
                   Update Profile
                </button>
             </div>
-
-            {/* Tax Info Preview */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8">
-               <div className="flex items-center gap-3 mb-4 text-slate-400">
-                  <Landmark size={18} />
-                  <span className="text-[11px] font-bold uppercase tracking-widest">Tax Identity</span>
-               </div>
-               <div className="space-y-2">
-                 <p className="text-xs text-slate-600 font-medium">TIN: <span className="text-slate-900 font-bold">{profile?.tin || 'Not set'}</span></p>
-                 <p className="text-xs text-slate-600 font-medium">BRN: <span className="text-slate-900 font-bold">{profile?.brn || 'Not set'}</span></p>
-               </div>
-            </div>
          </div>
       </div>
 
-      {/* EDIT PROFILE MODAL */}
+      {/* EDIT MODAL */}
       {isEditing && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-          <form onSubmit={handleUpdateProfile} className="bg-white w-full max-w-xl rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in duration-300 max-h-[90vh] flex flex-col">
+          <form onSubmit={handleUpdateProfile} className="bg-white w-full max-w-xl rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
              <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
-                <h3 className="font-bold text-slate-800 uppercase italic text-sm">Update Information</h3>
-                <button type="button" onClick={() => setIsEditing(false)} className="p-1 hover:bg-slate-200 rounded-full transition-all active:scale-95 text-slate-400"><X size={20}/></button>
+                <h3 className="font-bold text-slate-800 uppercase italic text-sm">Update Profile Details</h3>
+                <button type="button" onClick={() => setIsEditing(false)} className="p-1 hover:bg-slate-200 rounded-full transition-all active:scale-95"><X size={20}/></button>
              </div>
              
-             <div className="p-8 space-y-5 overflow-y-auto scrollbar-hide">
+             <div className="p-8 space-y-5 overflow-y-auto max-h-[70vh] scrollbar-hide">
                 <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
                         <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Full Name</label>
-                        <input required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} />
+                        <input required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500" value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} />
                     </div>
                     <div>
                         <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Phone Number</label>
-                        <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                        <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                     </div>
                     <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Avatar Link (ImgBB)</label>
-                        <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" value={formData.avatar_url} onChange={e => setFormData({...formData, avatar_url: e.target.value})} />
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Avatar Link</label>
+                        <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500" value={formData.avatar_url} onChange={e => setFormData({...formData, avatar_url: e.target.value})} />
                     </div>
                 </div>
 
@@ -251,26 +214,26 @@ export default function MemberProfileView({ initialProfile, initialOrders }: Mem
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="text-[9px] font-bold text-slate-400 uppercase mb-1 block ml-1">TIN Number</label>
-                            <input className="w-full p-3 bg-white border border-blue-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none" value={formData.tin} onChange={e => setFormData({...formData, tin: e.target.value})} placeholder="e.g. IG12345678" />
+                            <input className="w-full p-3 bg-white border border-blue-200 rounded-xl text-xs font-bold" value={formData.tin} onChange={e => setFormData({...formData, tin: e.target.value})} placeholder="e.g. IG12345678" />
                         </div>
                         <div>
                             <label className="text-[9px] font-bold text-slate-400 uppercase mb-1 block ml-1">BRN / NRIC</label>
-                            <input className="w-full p-3 bg-white border border-blue-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 outline-none" value={formData.brn} onChange={e => setFormData({...formData, brn: e.target.value})} placeholder="Business Reg No" />
+                            <input className="w-full p-3 bg-white border border-blue-200 rounded-xl text-xs font-bold" value={formData.brn} onChange={e => setFormData({...formData, brn: e.target.value})} placeholder="Reg No" />
                         </div>
                     </div>
                 </div>
 
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block ml-1">Shipping Address</label>
-                  <textarea rows={3} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+                  <textarea rows={3} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
                 </div>
                 
                 <button 
                   type="submit" 
                   disabled={loading}
-                  className="w-full bg-[#2563EB] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                  className="w-full bg-[#2563EB] text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 disabled:opacity-50"
                 >
-                  {loading ? <Spinner size={16}/> : <><Save size={16}/> Update My Profile</>}
+                  {loading ? <Spinner size={16}/> : <><Save size={16}/> Save Changes</>}
                 </button>
              </div>
           </form>
