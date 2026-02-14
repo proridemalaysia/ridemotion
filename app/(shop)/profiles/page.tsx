@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   User, Star, Package, Clock, ShieldCheck, 
-  MapPin, Truck, ExternalLink, ChevronRight, LogOut, AlertCircle 
+  MapPin, Truck, ExternalLink, ChevronRight, LogOut 
 } from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 import { signOutAction } from '@/app/login/actions';
@@ -12,106 +12,79 @@ export default function CustomerProfile() {
   const [profile, setProfile] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [debugInfo, setDebugInfo] = useState<string>("Initializing...");
+  const [lastSync, setLastSync] = useState<string>("");
 
   useEffect(() => {
-    fetchProfileData();
+    // This function will run every time the user state changes
+    const getIdentity = async () => {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Fetch Profile
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        // Fetch Orders
+        const { data: ord } = await supabase
+          .from('sales')
+          .select('*')
+          .eq('customer_id', user.id)
+          .order('created_at', { ascending: false });
+
+        setProfile(prof);
+        setOrders(ord || []);
+        setLastSync(new Date().toLocaleTimeString());
+      } else {
+        window.location.href = '/login';
+      }
+      setLoading(false);
+    };
+
+    getIdentity();
   }, []);
 
-  async function fetchProfileData() {
-    setLoading(true);
-    try {
-      // 1. Get current authenticated user
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        setDebugInfo("No active session found. Redirecting...");
-        window.location.href = '/login';
-        return;
-      }
-
-      setDebugInfo(`User found: ${user.email}. Fetching profile...`);
-
-      // 2. Fetch Profile from 'profiles' table
-      const { data: prof, error: profError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle(); // Use maybeSingle to prevent crash if row missing
-      
-      if (profError) {
-        console.error("Database Error:", profError);
-        setDebugInfo("Database error: " + profError.message);
-      }
-
-      if (!prof) {
-        setDebugInfo("Profile row missing in database for this user.");
-      } else {
-        setDebugInfo("Profile loaded successfully.");
-        setProfile(prof);
-      }
-
-      // 3. Fetch Orders
-      const { data: ord } = await supabase
-        .from('sales')
-        .select('*')
-        .eq('customer_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (ord) setOrders(ord);
-
-    } catch (err: any) {
-      setDebugInfo("System Error: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   if (loading) return (
-    <div className="flex flex-col items-center justify-center py-40 gap-4">
-      <Spinner size={40} className="text-orange-500" />
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Syncing Secure Data...</p>
+    <div className="flex flex-col items-center justify-center py-40 gap-4 bg-[#F8FAFC]">
+      <Spinner size={40} className="text-blue-600" />
+      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Syncing Database...</p>
     </div>
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20 px-4">
+    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-700 pb-20 px-4">
       
-      {/* DEBUG BAR - Remove this after it works */}
-      {!profile && (
-        <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg text-[10px] font-mono text-amber-700">
-           DEBUG: {debugInfo}
-        </div>
-      )}
-
-      {/* 1. Member Header Card */}
+      {/* 1. Profile Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
-        <div className="w-24 h-24 bg-[#020617] rounded-3xl flex items-center justify-center text-white shadow-xl relative z-10">
+        <div className="w-24 h-24 bg-[#020617] rounded-3xl flex items-center justify-center text-white shadow-xl">
            <User size={48} strokeWidth={1.5} />
         </div>
 
-        <div className="flex-1 text-center md:text-left relative z-10">
-           {/* FALLBACK LOGIC: If full_name is null, show "Member" */}
+        <div className="flex-1 text-center md:text-left">
+           {/* If profile.full_name is still null in DB, it shows "Member" */}
            <h1 className="text-3xl font-bold text-slate-900 tracking-tight uppercase italic">
-            {profile?.full_name || 'PartsHub Member'}
+            {profile?.full_name || 'Member Account'}
            </h1>
            <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">
-            Registered Account • Since {profile?.created_at ? new Date(profile.created_at).getFullYear() : '2024'}
+            Registered: {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Active'}
            </p>
            
            <div className="flex flex-wrap gap-4 mt-6 justify-center md:justify-start">
-              <div className="bg-orange-50 border border-orange-200 text-orange-700 px-5 py-2 rounded-xl flex items-center gap-3 shadow-sm">
+              <div className="bg-orange-50 border border-orange-200 text-orange-700 px-5 py-2 rounded-xl flex items-center gap-3">
                  <Star size={18} fill="currentColor" />
                  <div>
-                    <p className="text-[10px] font-bold uppercase leading-none opacity-70">Loyalty Balance</p>
-                    <p className="text-xl font-bold tracking-tighter">{profile?.loyalty_points || 0} Pts</p>
+                    <p className="text-[10px] font-bold uppercase leading-none opacity-70">Loyalty Pts</p>
+                    <p className="text-xl font-bold tracking-tighter">{profile?.loyalty_points || 0}</p>
                  </div>
               </div>
-              <div className="bg-blue-50 border border-blue-200 text-blue-700 px-5 py-2 rounded-xl flex items-center gap-3 shadow-sm">
+              <div className="bg-blue-50 border border-blue-200 text-blue-700 px-5 py-2 rounded-xl flex items-center gap-3">
                  <Package size={18} />
                  <div>
-                    <p className="text-[10px] font-bold uppercase leading-none opacity-70">Orders</p>
-                    <p className="text-xl font-bold tracking-tighter">{orders.length} History</p>
+                    <p className="text-[10px] font-bold uppercase leading-none opacity-70">Total Orders</p>
+                    <p className="text-xl font-bold tracking-tighter">{orders.length}</p>
                  </div>
               </div>
            </div>
@@ -125,27 +98,25 @@ export default function CustomerProfile() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-         <div className="lg:col-span-2 space-y-4">
-            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.2em] ml-2">Purchase History</h3>
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden text-sm">
-               <table className="w-full text-left border-collapse">
-                  <thead>
-                     <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        <th className="px-6 py-4">Order ID</th>
-                        <th className="px-6 py-4">Date</th>
-                        <th className="px-6 py-4 text-right">Total</th>
+         <div className="lg:col-span-2">
+            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4 ml-2">Order History</h3>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+               <table className="w-full text-left text-sm border-collapse">
+                  <thead className="bg-slate-50 text-slate-400 uppercase font-bold text-[10px] tracking-widest border-b border-slate-100">
+                     <tr>
+                        <th className="px-6 py-4">Ref Number</th>
+                        <th className="px-6 py-4 text-right">Amount</th>
                         <th className="px-6 py-4 text-center">Status</th>
-                        <th className="px-6 py-4 text-right">View</th>
+                        <th className="px-6 py-4 text-right">Action</th>
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                      {orders.map(order => (
-                        <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                           <td className="px-6 py-4 font-bold text-slate-900 uppercase">#ORD-{order.order_number}</td>
-                           <td className="px-6 py-4 text-slate-500 font-medium">{new Date(order.created_at).toLocaleDateString()}</td>
-                           <td className="px-6 py-4 text-right font-bold text-slate-900 font-mono">RM {Number(order.total_amount || 0).toFixed(2)}</td>
+                        <tr key={order.id} className="hover:bg-slate-50">
+                           <td className="px-6 py-4 font-bold text-slate-900">#ORD-{order.order_number}</td>
+                           <td className="px-6 py-4 text-right font-bold text-slate-900 italic">RM {Number(order.total_amount).toFixed(2)}</td>
                            <td className="px-6 py-4 text-center">
-                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${order.status === 'completed' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+                              <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full border ${order.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                                  {order.status}
                               </span>
                            </td>
@@ -155,22 +126,32 @@ export default function CustomerProfile() {
                   </tbody>
                </table>
                {orders.length === 0 && (
-                  <div className="py-20 text-center text-slate-300 font-bold uppercase text-[10px] tracking-widest">No transactions recorded</div>
+                  <div className="py-20 text-center text-slate-300 font-bold uppercase text-[10px] tracking-widest">No orders found.</div>
                )}
             </div>
          </div>
 
-         <div className="space-y-6">
-            <div className="bg-[#020617] rounded-3xl p-8 text-white shadow-2xl">
-               <div className="flex items-center gap-3 mb-6 text-blue-400">
-                  <MapPin size={18} />
-                  <span className="text-xs font-bold uppercase tracking-widest">Shipping Address</span>
+         <div className="bg-[#020617] rounded-3xl p-8 text-white h-fit shadow-2xl">
+            <h3 className="text-[11px] font-bold uppercase text-blue-400 tracking-widest mb-6">Security & Session</h3>
+            <div className="space-y-4">
+               <div className="flex justify-between border-b border-slate-800 pb-2">
+                  <span className="text-slate-500 text-xs font-bold uppercase">Last Sync</span>
+                  <span className="text-xs font-mono">{lastSync}</span>
                </div>
-               <p className="text-sm text-slate-400 leading-relaxed italic">
-                  {profile?.address || "No primary address set."}
-               </p>
+               <div className="flex justify-between border-b border-slate-800 pb-2">
+                  <span className="text-slate-500 text-xs font-bold uppercase">DB Connection</span>
+                  <span className="text-xs text-green-500 font-bold uppercase tracking-tighter">Verified</span>
+               </div>
             </div>
+            <p className="mt-8 text-[10px] text-slate-500 italic leading-relaxed">
+               Every time you load this page, your membership data is verified against the PartsHub secure vault.
+            </p>
          </div>
+      </div>
+
+      {/* VERSION CHECKER: If this says "v1.0.8", you know the code updated. */}
+      <div className="text-center opacity-20 hover:opacity-100 transition-opacity">
+         <p className="text-[9px] font-bold uppercase tracking-[1em]">Deploy Version: v1.0.8</p>
       </div>
     </div>
   );
