@@ -6,8 +6,14 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { supabase } from '@/lib/supabase';
+import { signOutAction } from '@/app/login/actions';
 
-export default function MemberProfileView({ initialProfile, initialOrders }: any) {
+interface MemberProfileViewProps {
+  initialProfile: any;
+  initialOrders: any[];
+}
+
+export default function MemberProfileView({ initialProfile, initialOrders }: MemberProfileViewProps) {
   const [profile, setProfile] = useState(initialProfile);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -59,12 +65,13 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
       
       {/* 1. Member Identity Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
+        {/* Modern decorative accent */}
         <div className="absolute -right-20 -top-20 w-64 h-64 bg-slate-50 rounded-full blur-3xl opacity-50"></div>
         
         {/* Profile Image Display */}
         <div className={clsx(
             "w-24 h-24 rounded-3xl flex items-center justify-center text-white shadow-xl relative z-10 overflow-hidden",
-            isUserAdmin ? "bg-red-600" : "bg-[#020617]"
+            isUserAdmin ? "bg-red-600 shadow-red-900/20" : "bg-[#020617] shadow-slate-900/20"
         )}>
            {profile?.avatar_url ? (
              <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Profile" />
@@ -98,6 +105,8 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
               </div>
            </div>
         </div>
+
+        {/* Sign Out Logic Removed from here to follow your request since it is in Header */}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -119,12 +128,14 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                     {initialOrders.map(order => (
-                        <tr key={order.id} className="hover:bg-slate-50 transition-colors group">
-                           <td className="px-6 py-4 font-bold text-slate-900 uppercase">#ORD-{order.order_number}</td>
-                           <td className="px-6 py-4 text-slate-500 font-medium">{new Date(order.created_at).toLocaleDateString('en-MY')}</td>
-                           <td className="px-6 py-4 text-right font-bold text-slate-900 italic">RM {Number(order.total_amount).toFixed(2)}</td>
-                           <td className="px-6 py-4 text-center">
+                     {/* FIXED: Added explicit type (order: any) for Vercel Build */}
+                     {initialOrders.map((order: any) => (
+                        <React.Fragment key={order.id}>
+                           <tr className="hover:bg-slate-50 transition-colors group">
+                              <td className="px-6 py-4 font-bold text-slate-900 uppercase">#ORD-{order.order_number}</td>
+                              <td className="px-6 py-4 text-slate-500 font-medium">{new Date(order.created_at).toLocaleDateString('en-MY')}</td>
+                              <td className="px-6 py-4 text-right font-bold text-slate-900 italic">RM {Number(order.total_amount).toFixed(2)}</td>
+                              <td className="px-6 py-4 text-center">
                                 <span className={clsx(
                                   "text-[10px] font-bold uppercase px-3 py-1 rounded-full border",
                                   order.status === 'completed' ? "bg-green-50 text-green-700 border-green-200 shadow-sm shadow-green-50" : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm shadow-amber-50"
@@ -132,10 +143,29 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
                                    {order.status}
                                 </span>
                              </td>
-                           <td className="px-6 py-4 text-right">
-                               <ChevronRight size={20} className="text-slate-300 ml-auto" />
-                           </td>
-                        </tr>
+                              <td className="px-6 py-4 text-right">
+                               <button className="text-blue-600 hover:text-blue-800 transition-colors p-1 active:scale-90">
+                                 <ChevronRight size={20} />
+                               </button>
+                             </td>
+                           </tr>
+                           {/* Tracking Integration */}
+                           {order.tracking_number && (
+                             <tr className="bg-blue-50/40 border-b border-slate-100">
+                               <td colSpan={5} className="px-6 py-3">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                     <div className="flex items-center gap-3 font-bold text-blue-700 uppercase tracking-tighter">
+                                        <Truck size={14} className="animate-bounce" />
+                                        <span>Shipped via {order.courier_name} • <span className="underline decoration-2">{order.tracking_number}</span></span>
+                                     </div>
+                                     <button className="flex items-center gap-1 font-bold text-blue-600 hover:underline uppercase tracking-widest">
+                                        Track Parcel <ExternalLink size={12} />
+                                     </button>
+                                  </div>
+                               </td>
+                             </tr>
+                           )}
+                        </React.Fragment>
                      ))}
                   </tbody>
                </table>
@@ -156,7 +186,7 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
                <MapPin className="absolute -right-6 -bottom-6 opacity-10 w-32 h-32" />
                <div className="flex items-center gap-3 mb-6 text-blue-400">
                   <div className="p-2 bg-blue-500/20 rounded-lg"><MapPin size={18} /></div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Primary Address</span>
+                  <span className="text-xs font-bold uppercase tracking-widest">Primary Address</span>
                </div>
                <p className="text-sm text-slate-400 leading-relaxed font-medium italic mb-8">
                   {profile?.address || "No primary address recorded. Please update your profile for faster checkout."}
@@ -187,7 +217,7 @@ export default function MemberProfileView({ initialProfile, initialOrders }: any
           <form onSubmit={handleUpdateProfile} className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
              <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
                 <h3 className="font-bold text-slate-800 uppercase italic">Edit Profile</h3>
-                <button type="button" onClick={() => setIsEditing(false)} className="p-1 hover:bg-slate-200 rounded-full transition-all"><X size={20}/></button>
+                <button type="button" onClick={() => setIsEditing(false)} className="p-1 hover:bg-slate-200 rounded-full transition-all active:scale-90"><X size={20}/></button>
              </div>
              <div className="p-8 space-y-4">
                 <div>
