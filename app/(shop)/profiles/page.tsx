@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   User, Star, Package, Clock, ShieldCheck, 
-  MapPin, Truck, ExternalLink, ChevronRight, LogOut 
+  MapPin, Truck, ExternalLink, ChevronRight, LogOut, AlertCircle 
 } from 'lucide-react';
 import { Spinner } from '@/components/Spinner';
 import { signOutAction } from '@/app/login/actions';
@@ -12,6 +12,7 @@ export default function CustomerProfile() {
   const [profile, setProfile] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProfileData();
@@ -19,29 +20,45 @@ export default function CustomerProfile() {
 
   async function fetchProfileData() {
     setLoading(true);
+    setErrorMsg(null);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // 1. Get current authenticated user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
       
+      if (authError) throw new Error("Auth Error: " + authError.message);
+
       if (user) {
-        // 1. Fetch Profile Data (Full Name, Points, etc.)
-        const { data: prof } = await supabase
+        console.log("Logged in as ID:", user.id);
+
+        // 2. Fetch Profile (Full Name, Points) from 'profiles' table
+        const { data: prof, error: profError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .single();
         
-        // 2. Fetch Order History for this specific user
-        const { data: ord } = await supabase
+        if (profError) {
+          console.error("Profile Fetch Error:", profError);
+          setErrorMsg("Could not load profile from database.");
+        }
+
+        // 3. Fetch Orders from 'sales' table
+        const { data: ord, error: ordError } = await supabase
           .from('sales')
           .select('*')
           .eq('customer_id', user.id)
           .order('created_at', { ascending: false });
 
-        setProfile(prof);
-        setOrders(ord || []);
+        if (ordError) console.error("Orders Fetch Error:", ordError);
+
+        if (prof) setProfile(prof);
+        if (ord) setOrders(ord);
+      } else {
+        window.location.href = '/login';
       }
-    } catch (err) {
-      console.error("Error loading profile:", err);
+    } catch (err: any) {
+      console.error("System Error:", err);
+      setErrorMsg(err.message);
     } finally {
       setLoading(false);
     }
@@ -50,16 +67,22 @@ export default function CustomerProfile() {
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-40 gap-4">
       <Spinner size={40} className="text-orange-500" />
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Accessing Member Data...</p>
+      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Syncing Member Data...</p>
     </div>
   );
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20 px-4">
       
+      {/* Error Alert if DB Fetch Fails */}
+      {errorMsg && (
+        <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3 text-red-600 text-xs font-bold uppercase tracking-tight">
+          <AlertCircle size={18} /> {errorMsg}
+        </div>
+      )}
+
       {/* 1. Member Header Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col md:flex-row gap-8 items-center md:items-start relative overflow-hidden">
-        {/* Decorative background element */}
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-slate-50 rounded-full opacity-50 blur-3xl"></div>
         
         <div className="w-24 h-24 bg-[#020617] rounded-3xl flex items-center justify-center text-white shadow-xl relative z-10">
@@ -93,7 +116,7 @@ export default function CustomerProfile() {
         </div>
 
         <form action={signOutAction} className="md:absolute md:top-8 md:right-8">
-           <button type="submit" className="flex items-center gap-2 text-red-500 font-bold text-xs uppercase tracking-widest hover:bg-red-50 px-4 py-2 rounded-lg transition-all active:scale-95">
+           <button type="submit" className="flex items-center gap-2 text-red-500 font-bold text-xs uppercase tracking-widest hover:bg-red-50 px-4 py-2 rounded-lg transition-all active:scale-95 border border-red-100">
               <LogOut size={16} /> Sign Out
            </button>
         </form>
@@ -123,7 +146,7 @@ export default function CustomerProfile() {
                            <tr className="hover:bg-slate-50 transition-colors group">
                               <td className="px-6 py-4 font-bold text-slate-900 uppercase">#ORD-{order.order_number}</td>
                               <td className="px-6 py-4 text-slate-500 font-medium">{new Date(order.created_at).toLocaleDateString('en-MY')}</td>
-                              <td className="px-6 py-4 text-right font-bold text-slate-900 italic">RM {Number(order.total_amount).toFixed(2)}</td>
+                              <td className="px-6 py-4 text-right font-bold text-slate-900 italic">RM {Number(order.total_amount || 0).toFixed(2)}</td>
                               <td className="px-6 py-4 text-center">
                                  <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full border ${
                                     order.status === 'completed' 
@@ -145,7 +168,7 @@ export default function CustomerProfile() {
                                <td colSpan={5} className="px-6 py-3">
                                   <div className="flex items-center justify-between text-[11px]">
                                      <div className="flex items-center gap-3 font-bold text-blue-700 uppercase tracking-tighter">
-                                        <Truck size={14} className="animate-bounce" />
+                                        <Truck size={14} />
                                         <span>Shipped via {order.courier_name} • <span className="underline decoration-2">{order.tracking_number}</span></span>
                                      </div>
                                      <button className="flex items-center gap-1 font-bold text-blue-600 hover:underline uppercase tracking-widest">
@@ -179,7 +202,7 @@ export default function CustomerProfile() {
                   <span className="text-xs font-bold uppercase tracking-[0.2em]">Default Shipping</span>
                </div>
                <p className="text-sm text-slate-400 leading-relaxed font-medium italic">
-                  {profile?.address || "No address saved. Add one to your next order for faster checkout."}
+                  {profile?.address || "No address saved. Please update your profile for faster checkout."}
                </p>
                <button className="mt-8 w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[11px] font-bold uppercase tracking-widest transition-all border border-white/10 active:scale-95">
                   Manage Addresses
@@ -192,18 +215,16 @@ export default function CustomerProfile() {
                   <span className="text-xs font-bold uppercase tracking-widest">Loyalty Status</span>
                </div>
                <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                  {profile?.loyalty_points > 500 
-                    ? "You are a Gold Tier member! Enjoy 5% off selected parts." 
-                    : "Earn points on every RM1 spent. Redemptions start at 100 points."}
+                  Earn points on every RM1 spent. Redemptions start at 100 points for RM2.00 off.
                </p>
                <div className="mt-6 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                   <div 
                     className="bg-orange-500 h-full transition-all duration-1000" 
-                    style={{ width: `${Math.min((profile?.loyalty_points / 500) * 100, 100)}%` }}
+                    style={{ width: `${Math.min(((profile?.loyalty_points || 0) / 500) * 100, 100)}%` }}
                   ></div>
                </div>
                <p className="text-[9px] text-slate-400 mt-3 font-bold uppercase tracking-widest">
-                  {500 - (profile?.loyalty_points || 0)} pts until next tier reward
+                  Points toward next milestone
                </p>
             </div>
          </div>
