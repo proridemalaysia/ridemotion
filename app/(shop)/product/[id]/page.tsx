@@ -15,7 +15,7 @@ import { clsx } from 'clsx';
 export default function ProductDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { addToCart } = useCart();
+  const { addToCart, user, isInitialized } = useCart();
   
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -25,12 +25,10 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<any>(null);
   const [variants, setVariants] = useState<any[]>([]);
   
-  // UI States
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedBundle, setSelectedBundle] = useState<'front' | 'rear' | 'full'>('full');
   const [activeTab, setActiveTab] = useState<'desc' | 'specs'>('desc');
   
-  // Admin Edit States
   const [editImages, setEditImages] = useState<string[]>([]);
   const [newImageUrl, setNewImageUrl] = useState("");
   const [editDiscount, setEditDiscount] = useState(0);
@@ -40,9 +38,9 @@ export default function ProductDetailPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser) {
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', currentUser.id).single();
         setIsAdmin(profile?.role === 'admin' || profile?.role === 'staff');
       }
 
@@ -66,7 +64,6 @@ export default function ProductDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  // --- BUNDLE CALCULATION ---
   const bundles = useMemo(() => {
     const getPrice = (v: any) => Number(v?.price_online || v?.price_myr || 0);
     const front = variants.filter(v => v.position?.toUpperCase().includes('FRONT'));
@@ -92,26 +89,42 @@ export default function ProductDetailPage() {
   const finalPrice = currentPrice * (1 - (editDiscount / 100));
 
   const handleAddToCart = async () => {
+    // 1. Wait for system initialization
+    if (!isInitialized) return;
+
+    // 2. Immediate check for user session
+    if (!user) {
+      alert("Please sign in to add items to your cart.");
+      router.push('/login');
+      return;
+    }
+
     const componentIds = bundles[selectedBundle].ids;
-    if (componentIds.length === 0) return;
+    if (componentIds.length === 0) {
+      alert("No components found for this selection.");
+      return;
+    }
 
     setSyncing(true);
     
-    // Add all parts in the bundle one by one
-    for (const vId of componentIds) {
-      const result = await addToCart(vId);
-      if (result.error === 'auth_required') {
-        router.push('/login');
-        return;
+    try {
+      // Add components sequentially
+      for (const vId of componentIds) {
+        const result = await addToCart(vId);
+        if (!result.success && result.error === 'auth_required') {
+          router.push('/login');
+          return;
+        }
       }
+      
+      router.push('/cart');
+    } catch (err) {
+      console.error("Cart process failed", err);
+    } finally {
+      setSyncing(false);
     }
-    
-    setSyncing(false);
-    alert(`${selectedBundle.toUpperCase()} Bundle successfully added to cart!`);
-    router.push('/cart'); // Send them to cart to finalize
   };
 
-  // Admin Media Helpers
   const addImage = () => {
     if (!newImageUrl) return;
     setEditImages(prev => [...prev, newImageUrl]);
@@ -182,7 +195,7 @@ export default function ProductDetailPage() {
 
           <div className="flex gap-4 overflow-x-auto py-2 scrollbar-hide">
              {editImages.map((img, idx) => (
-               <button key={idx} onClick={() => setActiveImageIndex(idx)} className={clsx("w-20 h-20 rounded-2xl border-2 shrink-0 transition-all active:scale-90 overflow-hidden", activeImageIndex === idx ? "border-blue-600 shadow-md" : "border-transparent opacity-60")}>
+               <button key={idx} onClick={() => setActiveImageIndex(idx)} className={clsx("w-20 h-20 rounded-2xl border-2 shrink-0 transition-all active:scale-90 overflow-hidden", activeImageIndex === idx ? "border-blue-600" : "border-transparent opacity-60")}>
                  <img src={img} className="w-full h-full object-cover" />
                </button>
              ))}
@@ -212,9 +225,9 @@ export default function ProductDetailPage() {
 
           <div className="bg-white rounded-[32px] p-8 border border-slate-200 shadow-sm space-y-8">
              <div className="flex flex-wrap gap-3">
-                {bundles.front.available && <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Front Set (2pcs)</button>}
-                {bundles.rear.available && <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Rear Set (2pcs)</button>}
-                <button onClick={() => setSelectedBundle('full')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'full' ? "bg-slate-900 text-white shadow-lg" : "bg-slate-50 text-slate-400 hover:bg-slate-100")}>Full Set (4pcs)</button>
+                {bundles.front.available && <button onClick={() => setSelectedBundle('front')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'front' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Front Set (2pcs)</button>}
+                {bundles.rear.available && <button onClick={() => setSelectedBundle('rear')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'rear' ? "bg-blue-600 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Rear Set (2pcs)</button>}
+                <button onClick={() => setSelectedBundle('full')} className={clsx("px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-95", selectedBundle === 'full' ? "bg-slate-900 text-white shadow-lg" : "bg-slate-50 text-slate-400")}>Full Set (4pcs)</button>
              </div>
 
              <div className="flex items-baseline gap-4 pt-4 border-t">
@@ -289,6 +302,17 @@ export default function ProductDetailPage() {
                )}
             </div>
           )}
+
+          <div className="grid grid-cols-2 gap-4">
+             <div className="p-5 bg-slate-50 border border-slate-100 rounded-[24px]">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 text-center">Warehouse Bin</p>
+                <p className="text-sm font-bold text-slate-700 uppercase italic font-mono text-center">{variants[0]?.bin_location || 'A1-SECTION'}</p>
+             </div>
+             <div className="p-5 bg-slate-50 border border-slate-100 rounded-[24px]">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 text-center">Current Stock</p>
+                <p className="text-sm font-bold text-slate-700 uppercase tracking-tighter text-center">{variants[0]?.stock_quantity || 0} Units</p>
+             </div>
+          </div>
         </div>
       </div>
     </div>

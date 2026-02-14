@@ -16,7 +16,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       .select(`*, products_flat (*)`)
       .eq('user_id', userId);
     
-    if (error) return;
+    if (error) {
+      console.error("Cart fetch error:", error);
+      return;
+    }
 
     if (data) {
       setCartItems(data);
@@ -26,6 +29,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // 1. Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user);
@@ -34,6 +38,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setIsInitialized(true);
     });
 
+    // 2. Listen for Auth Changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
@@ -50,35 +55,36 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [fetchCart]);
 
   const addToCart = async (variantId: string) => {
-    // 1. Check for user session
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    
-    if (!currentUser) {
+    // FIXED: Use the 'user' state from the context instead of calling getUser()
+    if (!user) {
+      console.error("Cart Error: No user session found in state.");
       return { success: false, error: 'auth_required' };
     }
 
     try {
-      // 2. Check if item already exists
       const { data: existing } = await supabase
         .from('cart_items')
         .select('*')
         .eq('variant_id', variantId)
-        .eq('user_id', currentUser.id)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       if (existing) {
-        await supabase.from('cart_items').update({ quantity: existing.quantity + 1 }).eq('id', existing.id);
+        await supabase.from('cart_items')
+          .update({ quantity: existing.quantity + 1 })
+          .eq('id', existing.id);
       } else {
         await supabase.from('cart_items').insert([{ 
-            user_id: currentUser.id, 
+            user_id: user.id, 
             variant_id: variantId, 
             quantity: 1 
         }]);
       }
       
-      await fetchCart(currentUser.id);
+      await fetchCart(user.id);
       return { success: true };
     } catch (err) {
+      console.error("Database error adding to cart:", err);
       return { success: false, error: 'db_error' };
     }
   };
@@ -91,7 +97,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <CartContext.Provider value={{ cartCount, cartItems, addToCart, removeFromCart, fetchCart, user, isInitialized }}>
+    <CartContext.Provider value={{ 
+      cartCount, 
+      cartItems, 
+      addToCart, 
+      removeFromCart, 
+      fetchCart, 
+      user, 
+      isInitialized 
+    }}>
       {children}
     </CartContext.Provider>
   );
